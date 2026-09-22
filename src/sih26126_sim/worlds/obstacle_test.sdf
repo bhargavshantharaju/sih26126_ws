@@ -1,0 +1,168 @@
+<?xml version="1.0" ?>
+<sdf version="1.9">
+  <world name="obstacle_test_world">
+
+    <physics name="1ms" type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <plugin
+      filename="gz-sim-physics-system"
+      name="gz::sim::systems::Physics">
+    </plugin>
+
+    <plugin
+      filename="gz-sim-scene-broadcaster-system"
+      name="gz::sim::systems::SceneBroadcaster">
+    </plugin>
+
+    <plugin
+      filename="gz-sim-sensors-system"
+      name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+    <plugin
+      filename="gz-sim-imu-system"
+      name="gz::sim::systems::Imu">
+    </plugin>
+
+    <!-- Ground -->
+    <model name="ground">
+      <static>true</static>
+
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+        </collision>
+
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>
+            <emissive>0.8 0.8 0.8 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Main obstacle -->
+    <model name="obstacle_main">
+      <static>true</static>
+      <pose>5 0 0.75 0 0 0</pose>
+
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>1.5 2.0 1.5</size>
+            </box>
+          </geometry>
+        </collision>
+
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>1.5 2.0 1.5</size>
+            </box>
+          </geometry>
+
+          <material>
+            <ambient>0.05 0.05 0.05 1</ambient>
+            <diffuse>0.08 0.08 0.08 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Left-side obstacle -->
+    <model name="obstacle_left">
+      <static>true</static>
+      <pose>9 -3 0.5 0 0 0</pose>
+
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>1.0 1.5 1.0</size>
+            </box>
+          </geometry>
+        </collision>
+
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>1.0 1.5 1.0</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.15 0.15 0.15 1</ambient>
+            <diffuse>0.20 0.20 0.20 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Right-side obstacle -->
+    <model name="obstacle_right">
+      <static>true</static>
+      <pose>12 3 0.6 0 0 0</pose>
+
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>1.2 1.5 1.2</size>
+            </box>
+          </geometry>
+        </collision>
+
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>1.2 1.5 1.2</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.12 0.12 0.12 1</ambient>
+            <diffuse>0.18 0.18 0.18 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- UGV -->
+    <include>
+      <uri>model://sih_ugv</uri>
+      <name>sih_ugv</name>
+      <pose>0 0 0 0 0 0</pose>
+    </include>
+
+    <!-- Sun -->
+    <light name="sun" type="directional">
+      <pose>0 0 10 0 0 0</pose>
+      <direction>-0.5 0.3 -1</direction>
+      <diffuse>1 1 1 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>1000</range>
+      </attenuation>
+    </light>
+
+  </world>
+</sdf>
