@@ -413,35 +413,48 @@ class GeometryBaseline(Node):
 
         nx, ny, nz, d = plane
 
-        # Ray from camera origin through each point.
-        denominator = (
-            nx * x +
-            ny * y +
-            nz * z
+        # Ray from camera origin through each valid point.
+        #
+        # The organized point cloud legitimately contains NaN
+        # values outside the visible/valid region. Do not perform
+        # arithmetic or division on those pixels.
+
+        ray_norm = np.sqrt(
+            x * x +
+            y * y +
+            z * z
         )
 
-        plane_intersection = (
-            nx * x +
-            ny * y +
-            nz * z
+        ray_valid = (
+            valid
+            & np.isfinite(ray_norm)
+            & (ray_norm > 1e-6)
         )
 
-        # For each observed point p, the scale along its ray is
-        # simply its Euclidean range. To determine where that ray
-        # intersects the ground plane:
-        #
-        #   n.(t*r) + d = 0
-        #
-        #   t = -d/(n.r)
-        #
-        ray_norm = np.maximum(
-            range_m,
-            1e-6,
+        rx = np.zeros_like(x)
+        ry = np.zeros_like(y)
+        rz = np.zeros_like(z)
+
+        np.divide(
+            x,
+            ray_norm,
+            out=rx,
+            where=ray_valid,
         )
 
-        rx = x / ray_norm
-        ry = y / ray_norm
-        rz = z / ray_norm
+        np.divide(
+            y,
+            ray_norm,
+            out=ry,
+            where=ray_valid,
+        )
+
+        np.divide(
+            z,
+            ray_norm,
+            out=rz,
+            where=ray_valid,
+        )
 
         ray_plane_denominator = (
             nx * rx +
@@ -456,7 +469,7 @@ class GeometryBaseline(Node):
         )
 
         plane_valid = (
-            valid
+            ray_valid
             & np.isfinite(
                 ray_plane_denominator
             )
