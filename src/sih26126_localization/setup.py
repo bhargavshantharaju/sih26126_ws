@@ -24,6 +24,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'rgbd_odometry_baseline = '
+            'sih26126_localization.rgbd_odometry_baseline:main',
         ],
     },
 )

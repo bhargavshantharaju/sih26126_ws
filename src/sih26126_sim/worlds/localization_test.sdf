@@ -1,0 +1,355 @@
+<?xml version="1.0" ?>
+<sdf version="1.9">
+  <world name="localization_test_world">
+
+    <physics name="default_physics" type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
+
+    <plugin
+      filename="gz-sim-physics-system"
+      name="gz::sim::systems::Physics">
+    </plugin>
+
+    <plugin
+      filename="gz-sim-scene-broadcaster-system"
+      name="gz::sim::systems::SceneBroadcaster">
+    </plugin>
+
+    <plugin
+      filename="gz-sim-sensors-system"
+      name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+    <plugin
+      filename="gz-sim-imu-system"
+      name="gz::sim::systems::Imu">
+    </plugin>
+
+    <light
+      name="sun"
+      type="directional">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 12 0 0 0</pose>
+      <diffuse>0.9 0.9 0.9 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.4 0.3 -1</direction>
+    </light>
+
+    <!-- Ground -->
+    <model name="ground">
+      <static>true</static>
+
+      <link name="link">
+
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+        </collision>
+
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+
+          <material>
+            <ambient>0.45 0.45 0.45 1</ambient>
+            <diffuse>0.45 0.45 0.45 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>
+          </material>
+        </visual>
+
+      </link>
+    </model>
+
+    <!-- UGV -->
+    <include>
+      <uri>models/sih_ugv_depth/sih_ugv_depth.sdf</uri>
+      <name>sih_ugv_depth</name>
+      <pose>0 0 0 0 0 0</pose>
+    </include>
+
+    <!-- Main obstacle -->
+    <model name="sih_test_obstacle">
+      <static>true</static>
+      <pose>5.0 0.0 0.6 0 0 0</pose>
+
+      <link name="link">
+
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>1.4 1.2 1.2</size>
+            </box>
+          </geometry>
+        </collision>
+
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>1.4 1.2 1.2</size>
+            </box>
+          </geometry>
+
+          <material>
+            <ambient>0.08 0.08 0.08 1</ambient>
+            <diffuse>0.08 0.08 0.08 1</diffuse>
+            <specular>0.0 0.0 0.0 1</specular>
+          </material>
+        </visual>
+
+      </link>
+    </model>
+
+    <!-- Landmark 1 -->
+    <model name="landmark_1">
+      <static>true</static>
+      <pose>2.5 -2.0 0.6 0 0 0</pose>
+
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.8 0.8 1.2</size>
+            </box>
+          </geometry>
+        </collision>
+
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.8 0.8 1.2</size>
+            </box>
+          </geometry>
+
+          <material>
+            <ambient>0.9 0.15 0.08 1</ambient>
+            <diffuse>0.9 0.15 0.08 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Landmark 2 -->
+    <model name="landmark_2">
+      <static>true</static>
+      <pose>4.0 2.0 0.8 0 0 0</pose>
+
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.45</radius>
+              <length>1.6</length>
+            </cylinder>
+          </geometry>
+        </collision>
+
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.45</radius>
+              <length>1.6</length>
+            </cylinder>
+          </geometry>
+
+          <material>
+            <ambient>0.1 0.65 0.15 1</ambient>
+            <diffuse>0.1 0.65 0.15 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Landmark 3 -->
+    <model name="landmark_3">
+      <static>true</static>
+      <pose>6.5 -2.4 0.45 0 0 0</pose>
+
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>1.1 0.9 0.9</size>
+            </box>
+          </geometry>
+        </collision>
+
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>1.1 0.9 0.9</size>
+            </box>
+          </geometry>
+
+          <material>
+            <ambient>0.15 0.25 0.85 1</ambient>
+            <diffuse>0.15 0.25 0.85 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Landmark 4 -->
+    <model name="landmark_4">
+      <static>true</static>
+      <pose>8.5 2.1 0.7 0 0 0</pose>
+
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.35</radius>
+              <length>1.4</length>
+            </cylinder>
+          </geometry>
+        </collision>
+
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.35</radius>
+              <length>1.4</length>
+            </cylinder>
+          </geometry>
+
+          <material>
+            <ambient>0.75 0.65 0.08 1</ambient>
+            <diffuse>0.75 0.65 0.08 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Landmark 5 -->
+    <model name="landmark_5">
+      <static>true</static>
+      <pose>10.5 -1.8 0.5 0 0 0</pose>
+
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>1.0 1.4 1.0</size>
+            </box>
+          </geometry>
+        </collision>
+
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>1.0 1.4 1.0</size>
+            </box>
+          </geometry>
+
+          <material>
+            <ambient>0.7 0.12 0.65 1</ambient>
+            <diffuse>0.7 0.12 0.65 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Small rock cluster -->
+    <model name="rock_1">
+      <static>true</static>
+      <pose>3.0 0.9 0.30 0 0 0</pose>
+
+      <link name="link">
+
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.7 0.6 0.6</size>
+            </box>
+          </geometry>
+        </collision>
+
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.7 0.6 0.6</size>
+            </box>
+          </geometry>
+
+          <material>
+            <ambient>0.2 0.2 0.2 1</ambient>
+            <diffuse>0.2 0.2 0.2 1</diffuse>
+          </material>
+        </visual>
+
+      </link>
+    </model>
+
+    <model name="rock_2">
+      <static>true</static>
+      <pose>6.8 1.2 0.35 0 0 0</pose>
+
+      <link name="link">
+
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.9 0.7 0.7</size>
+            </box>
+          </geometry>
+        </collision>
+
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.9 0.7 0.7</size>
+            </box>
+          </geometry>
+
+          <material>
+            <ambient>0.65 0.65 0.65 1</ambient>
+            <diffuse>0.65 0.65 0.65 1</diffuse>
+          </material>
+        </visual>
+
+      </link>
+    </model>
+
+    <model name="rock_3">
+      <static>true</static>
+      <pose>9.0 -0.8 0.28 0 0 0</pose>
+
+      <link name="link">
+
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>0.6 0.5 0.55</size>
+            </box>
+          </geometry>
+        </collision>
+
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.6 0.5 0.55</size>
+            </box>
+          </geometry>
+
+          <material>
+            <ambient>0.25 0.25 0.25 1</ambient>
+            <diffuse>0.25 0.25 0.25 1</diffuse>
+          </material>
+        </visual>
+
+      </link>
+    </model>
+
+  </world>
+</sdf>
