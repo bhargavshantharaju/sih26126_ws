@@ -140,19 +140,19 @@
       <sensor name="sih26126_depth_camera" type="depth_camera">
         <pose>0.30 0 0.70 0 0 0</pose>
         <always_on>1</always_on>
-        <update_rate>15</update_rate>
+        <update_rate>10</update_rate>
         <visualize>false</visualize>
         <topic>depth_camera</topic>
         <camera>
           <horizontal_fov>1.0472</horizontal_fov>
           <image>
-            <width>640</width>
-            <height>480</height>
+            <width>320</width>
+            <height>240</height>
             <format>R_FLOAT32</format>
           </image>
           <clip>
             <near>0.10</near>
-            <far>30.0</far>
+            <far>20.0</far>
           </clip>
         </camera>
       </sensor>

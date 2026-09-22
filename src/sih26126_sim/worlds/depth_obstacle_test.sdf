@@ -1,45 +1,22 @@
-<?xml version="1.0" ?>
+<?xml version='1.0' encoding='utf-8'?>
 <sdf version="1.9">
-
   <world name="depth_obstacle_test_world">
-
-    <!-- Physics -->
     <physics name="1ms" type="ignored">
       <max_step_size>0.001</max_step_size>
       <real_time_factor>1.0</real_time_factor>
     </physics>
-
-
-    <!-- Gazebo core systems -->
-    <plugin
-      filename="gz-sim-physics-system"
-      name="gz::sim::systems::Physics">
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics">
     </plugin>
-
-    <plugin
-      filename="gz-sim-scene-broadcaster-system"
-      name="gz::sim::systems::SceneBroadcaster">
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster">
     </plugin>
-
-    <!-- Sensor system for camera rendering -->
-    <plugin
-      filename="gz-sim-sensors-system"
-      name="gz::sim::systems::Sensors">
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
       <render_engine>ogre2</render_engine>
     </plugin>
-
-    <!-- IMU system -->
-    <plugin
-      filename="gz-sim-imu-system"
-      name="gz::sim::systems::Imu">
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu">
     </plugin>
-
-    <!-- Ground -->
     <model name="ground">
       <static>true</static>
-
       <link name="link">
-
         <collision name="collision">
           <geometry>
             <plane>
@@ -48,7 +25,6 @@
             </plane>
           </geometry>
         </collision>
-
         <visual name="visual">
           <geometry>
             <plane>
@@ -56,44 +32,31 @@
               <size>100 100</size>
             </plane>
           </geometry>
-
           <material>
             <ambient>1 1 1 1</ambient>
             <diffuse>1 1 1 1</diffuse>
             <specular>0.1 0.1 0.1 1</specular>
-              <emissive>0.8 0.8 0.8 1</emissive>
+            <emissive>0.8 0.8 0.8 1</emissive>
           </material>
         </visual>
-
       </link>
     </model>
-
-    <!-- Sun -->
-    <light
-      name="sun"
-      type="directional">
+    <light name="sun" type="directional">
       <cast_shadows>true</cast_shadows>
       <pose>0 0 10 0 0 0</pose>
       <diffuse>0.8 0.8 0.8 1</diffuse>
       <specular>0.2 0.2 0.2 1</specular>
       <direction>-0.5 0.5 -1</direction>
     </light>
-
-    <!-- Our UGV -->
     <include>
       <uri>models/sih_ugv_depth/sih_ugv_depth.sdf</uri>
-      <name>sih_ugv</name>
+      <name>sih_ugv_depth</name>
       <pose>0 0 0 0 0 0</pose>
     </include>
-
-  
-    <!-- SIH26126 controlled obstacle -->
     <model name="sih_test_obstacle">
       <static>true</static>
       <pose>3.5 0 0.6 0 0 0</pose>
-
       <link name="link">
-
         <collision name="collision">
           <geometry>
             <box>
@@ -101,7 +64,6 @@
             </box>
           </geometry>
         </collision>
-
         <visual name="visual">
           <geometry>
             <box>
@@ -114,10 +76,7 @@
             <specular>0 0 0 1</specular>
           </material>
         </visual>
-
       </link>
     </model>
-
   </world>
-
 </sdf>
