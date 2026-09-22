@@ -1,0 +1,28 @@
+# ROS 2 / colcon
+build/
+install/
+log/
+
+# ROS logs
+.ros/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated simulation data
+*.bag
+*.db3
+
+# Temporary files
+*.tmp
+*.swp
