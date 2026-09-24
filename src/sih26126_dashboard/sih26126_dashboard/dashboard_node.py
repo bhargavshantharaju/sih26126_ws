@@ -11,9 +11,13 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+import math
+
 import rclpy
+from geometry_msgs.msg import Twist
+from nav_msgs.msg import Odometry
 from rclpy.node import Node
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, Imu
 from std_msgs.msg import Float32
 
 
@@ -38,6 +42,26 @@ STATE = {
     "trav_height": 0,
 
     "mean_score": None,
+
+    "odom_count": 0,
+    "odom_last": None,
+    "odom_x": 0.0,
+    "odom_y": 0.0,
+    "odom_yaw": 0.0,
+    "odom_vx": 0.0,
+    "odom_wz": 0.0,
+
+    "imu_count": 0,
+    "imu_last": None,
+    "imu_ax": 0.0,
+    "imu_ay": 0.0,
+    "imu_az": 0.0,
+    "imu_gz": 0.0,
+
+    "cmd_vel_count": 0,
+    "cmd_vel_last": None,
+    "cmd_vel_vx": 0.0,
+    "cmd_vel_wz": 0.0,
 
     "topics": {},
 }
@@ -338,6 +362,104 @@ Frames:
 </div>
 
 
+<div class="card c12">
+<h2>Vehicle Telemetry — LIVE</h2>
+
+<div class="grid">
+
+  <div class="card c4">
+    <h2>Odometry</h2>
+
+    <div class="row">
+      <span>Position X</span>
+      <strong id="odomx">—</strong>
+    </div>
+
+    <div class="row">
+      <span>Position Y</span>
+      <strong id="odomy">—</strong>
+    </div>
+
+    <div class="row">
+      <span>Yaw</span>
+      <strong id="odomyaw">—</strong>
+    </div>
+
+    <div class="row">
+      <span>Forward velocity</span>
+      <strong id="odomvx">—</strong>
+    </div>
+
+    <div class="row">
+      <span>Angular velocity</span>
+      <strong id="odomwz">—</strong>
+    </div>
+
+    <div class="meta">
+      Status: <span id="odomstatus">WAITING</span>
+      &nbsp; | &nbsp;
+      Age: <span id="odamage">—</span>
+    </div>
+  </div>
+
+  <div class="card c4">
+    <h2>Commanded Motion</h2>
+
+    <div class="row">
+      <span>Linear X</span>
+      <strong id="cmdvx">—</strong>
+    </div>
+
+    <div class="row">
+      <span>Angular Z</span>
+      <strong id="cmdwz">—</strong>
+    </div>
+
+    <div class="row">
+      <span>Messages</span>
+      <strong id="cmdcount">0</strong>
+    </div>
+
+    <div class="meta">
+      Last command age:
+      <span id="cmdage">—</span>
+    </div>
+  </div>
+
+  <div class="card c4">
+    <h2>IMU</h2>
+
+    <div class="row">
+      <span>Accel X</span>
+      <strong id="imuax">—</strong>
+    </div>
+
+    <div class="row">
+      <span>Accel Y</span>
+      <strong id="imuay">—</strong>
+    </div>
+
+    <div class="row">
+      <span>Accel Z</span>
+      <strong id="imuaz">—</strong>
+    </div>
+
+    <div class="row">
+      <span>Gyro Z</span>
+      <strong id="imugz">—</strong>
+    </div>
+
+    <div class="meta">
+      Status: <span id="imustatus">WAITING</span>
+      &nbsp; | &nbsp;
+      Age: <span id="imuage">—</span>
+    </div>
+  </div>
+
+</div>
+</div>
+
+
 <div class="card c8">
 <h2>ROS Topic Status</h2>
 
@@ -508,6 +630,59 @@ async function update(){
 
     document.getElementById("gitstate").textContent =
       s.git.clean ? "CLEAN" : "MODIFIED";
+
+    const v = s.vehicle;
+
+    document.getElementById("odomx").textContent =
+      v.odom.x.toFixed(3) + " m";
+
+    document.getElementById("odomy").textContent =
+      v.odom.y.toFixed(3) + " m";
+
+    document.getElementById("odomyaw").textContent =
+      v.odom.yaw.toFixed(3) + " rad";
+
+    document.getElementById("odomvx").textContent =
+      v.odom.vx.toFixed(3) + " m/s";
+
+    document.getElementById("odomwz").textContent =
+      v.odom.wz.toFixed(3) + " rad/s";
+
+    document.getElementById("odomstatus").textContent =
+      v.odom.live ? "LIVE" : "WAITING";
+
+    document.getElementById("odamage").textContent =
+      age(v.odom.age);
+
+    document.getElementById("cmdvx").textContent =
+      v.cmd_vel.vx.toFixed(3) + " m/s";
+
+    document.getElementById("cmdwz").textContent =
+      v.cmd_vel.wz.toFixed(3) + " rad/s";
+
+    document.getElementById("cmdcount").textContent =
+      v.cmd_vel.count;
+
+    document.getElementById("cmdage").textContent =
+      age(v.cmd_vel.age);
+
+    document.getElementById("imuax").textContent =
+      v.imu.ax.toFixed(3) + " m/s²";
+
+    document.getElementById("imuay").textContent =
+      v.imu.ay.toFixed(3) + " m/s²";
+
+    document.getElementById("imuaz").textContent =
+      v.imu.az.toFixed(3) + " m/s²";
+
+    document.getElementById("imugz").textContent =
+      v.imu.gz.toFixed(3) + " rad/s";
+
+    document.getElementById("imustatus").textContent =
+      v.imu.live ? "LIVE" : "WAITING";
+
+    document.getElementById("imuage").textContent =
+      age(v.imu.age);
 
     const list=[
       "/camera",
@@ -703,6 +878,27 @@ class DashboardNode(Node):
             10,
         )
 
+        self.create_subscription(
+            Odometry,
+            "/model/sih_ugv/odometry",
+            self.odom_callback,
+            10,
+        )
+
+        self.create_subscription(
+            Imu,
+            "/imu",
+            self.imu_callback,
+            10,
+        )
+
+        self.create_subscription(
+            Twist,
+            "/cmd_vel",
+            self.cmd_vel_callback,
+            10,
+        )
+
         self.create_timer(
             2.0,
             self.refresh_topics,
@@ -759,6 +955,46 @@ class DashboardNode(Node):
         with STATE["lock"]:
             STATE["mean_score"] = float(msg.data)
 
+    def odom_callback(self, msg):
+        orientation = msg.pose.pose.orientation
+
+        sin_yaw = 2.0 * (
+            orientation.w * orientation.z
+            + orientation.x * orientation.y
+        )
+
+        cos_yaw = 1.0 - 2.0 * (
+            orientation.y * orientation.y
+            + orientation.z * orientation.z
+        )
+
+        yaw = math.atan2(sin_yaw, cos_yaw)
+
+        with STATE["lock"]:
+            STATE["odom_count"] += 1
+            STATE["odom_last"] = time.time()
+            STATE["odom_x"] = float(msg.pose.pose.position.x)
+            STATE["odom_y"] = float(msg.pose.pose.position.y)
+            STATE["odom_yaw"] = float(yaw)
+            STATE["odom_vx"] = float(msg.twist.twist.linear.x)
+            STATE["odom_wz"] = float(msg.twist.twist.angular.z)
+
+    def imu_callback(self, msg):
+        with STATE["lock"]:
+            STATE["imu_count"] += 1
+            STATE["imu_last"] = time.time()
+            STATE["imu_ax"] = float(msg.linear_acceleration.x)
+            STATE["imu_ay"] = float(msg.linear_acceleration.y)
+            STATE["imu_az"] = float(msg.linear_acceleration.z)
+            STATE["imu_gz"] = float(msg.angular_velocity.z)
+
+    def cmd_vel_callback(self, msg):
+        with STATE["lock"]:
+            STATE["cmd_vel_count"] += 1
+            STATE["cmd_vel_last"] = time.time()
+            STATE["cmd_vel_vx"] = float(msg.linear.x)
+            STATE["cmd_vel_wz"] = float(msg.angular.z)
+
     def refresh_topics(self):
 
         wanted = {
@@ -769,6 +1005,7 @@ class DashboardNode(Node):
             "/clock",
             "/imu",
             "/cmd_vel",
+            "/model/sih_ugv/odometry",
         }
 
         found = {}
@@ -903,6 +1140,59 @@ class Handler(BaseHTTPRequestHandler):
                         ),
 
                         "mean_score": STATE["mean_score"],
+                    },
+
+                    "vehicle": {
+
+                        "odom": {
+                            "live": (
+                                STATE["odom_last"] is not None
+                                and now - STATE["odom_last"] < 2
+                            ),
+                            "age": (
+                                None
+                                if STATE["odom_last"] is None
+                                else now - STATE["odom_last"]
+                            ),
+                            "count": STATE["odom_count"],
+                            "x": STATE["odom_x"],
+                            "y": STATE["odom_y"],
+                            "yaw": STATE["odom_yaw"],
+                            "vx": STATE["odom_vx"],
+                            "wz": STATE["odom_wz"],
+                        },
+
+                        "imu": {
+                            "live": (
+                                STATE["imu_last"] is not None
+                                and now - STATE["imu_last"] < 2
+                            ),
+                            "age": (
+                                None
+                                if STATE["imu_last"] is None
+                                else now - STATE["imu_last"]
+                            ),
+                            "count": STATE["imu_count"],
+                            "ax": STATE["imu_ax"],
+                            "ay": STATE["imu_ay"],
+                            "az": STATE["imu_az"],
+                            "gz": STATE["imu_gz"],
+                        },
+
+                        "cmd_vel": {
+                            "live": (
+                                STATE["cmd_vel_last"] is not None
+                                and now - STATE["cmd_vel_last"] < 2
+                            ),
+                            "age": (
+                                None
+                                if STATE["cmd_vel_last"] is None
+                                else now - STATE["cmd_vel_last"]
+                            ),
+                            "count": STATE["cmd_vel_count"],
+                            "vx": STATE["cmd_vel_vx"],
+                            "wz": STATE["cmd_vel_wz"],
+                        },
                     },
 
                     "topics": dict(STATE["topics"]),

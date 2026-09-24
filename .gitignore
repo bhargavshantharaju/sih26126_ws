@@ -26,3 +26,8 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.swp
+*.log
+*.bak
+*.before_*
+src/sih26126_sim/models/sih_ugv_gimbal/
+src/sih26126_sim/worlds/gimbal_test.sdf
