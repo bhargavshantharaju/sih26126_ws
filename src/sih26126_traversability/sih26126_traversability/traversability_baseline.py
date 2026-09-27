@@ -60,11 +60,14 @@ class TraversabilityBaseline(Node):
         Bright, locally smooth terrain receives a higher score.
         Dark, high-gradient regions receive a lower score.
 
-        Returns:
-            score: ROI-sized float32 array in [0, 1]
-            roi_start: first full-image row belonging to the ROI
-        """
+        Returns
+        -------
+        score : np.ndarray
+            ROI-sized float32 array in [0, 1].
+        roi_start : int
+            First full-image row belonging to the ROI.
 
+        """
         height = image.shape[0]
 
         # Use the lower 60% of the image as the current ground-focused ROI.

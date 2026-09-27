@@ -31,6 +31,7 @@ def generate_launch_description():
             '/imu@sensor_msgs/msg/Imu@gz.msgs.IMU',
             '/camera@sensor_msgs/msg/Image@gz.msgs.Image',
             '/camera_info@sensor_msgs/msg/CameraInfo@gz.msgs.CameraInfo',
+            '/depth_camera/points@sensor_msgs/msg/PointCloud2@gz.msgs.PointCloudPacked',
             '/cmd_vel@geometry_msgs/msg/Twist@gz.msgs.Twist',
             '/model/sih_ugv/odometry@nav_msgs/msg/Odometry@gz.msgs.Odometry',
         ],

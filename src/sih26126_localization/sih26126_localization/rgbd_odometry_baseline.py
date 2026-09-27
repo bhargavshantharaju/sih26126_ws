@@ -639,7 +639,6 @@ class RGBDOdometryBaseline(Node):
             'odometry baseline started.'
         )
 
-
     def camera_info_callback(
         self,
         msg: CameraInfo,
@@ -1091,7 +1090,6 @@ class RGBDOdometryBaseline(Node):
                 ),
                 iterations=180,
                 threshold_m=0.05,
-                seed=42,
             )
 
             if (

@@ -4,7 +4,7 @@ package_name = 'sih26126_planner'
 
 setup(
     name=package_name,
-    version='0.0.0',
+    version='0.1.0',
     packages=find_packages(exclude=['test']),
     data_files=[
         ('share/ament_index/resource_index/packages',
@@ -15,7 +15,7 @@ setup(
     zip_safe=True,
     maintainer='venom',
     maintainer_email='venom@todo.todo',
-    description='TODO: Package description',
+    description='Terrain-aware advisory planner baseline for SIH26126.',
     license='Apache-2.0',
     extras_require={
         'test': [
@@ -24,6 +24,12 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'goal_path_planner = '
+            'sih26126_planner.goal_path_planner:main',
+            'local_path_selector = '
+            'sih26126_planner.local_path_selector:main',
+            'planner_baseline = '
+            'sih26126_planner.planner_baseline:main',
         ],
     },
 )

@@ -1,0 +1,10 @@
+builtin_interfaces/Time stamp
+string sensor_name
+bool data_valid
+bool stale
+bool healthy
+float32 valid_ratio
+float32 age_sec
+float32 sync_offset_sec
+uint32 sample_count
+string reason

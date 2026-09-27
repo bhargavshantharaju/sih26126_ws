@@ -17,11 +17,26 @@ setup(
         ),
     ],
     install_requires=["setuptools"],
+    extras_require={
+        'test': [
+            'pytest',
+        ],
+    },
     zip_safe=True,
     entry_points={
         "console_scripts": [
-            "geometry_baseline = "
-            "sih26126_geometry.geometry_baseline:main",
+            (
+                "geometry_baseline = "
+                "sih26126_geometry.geometry_baseline:main"
+            ),
+            (
+                "geometry_terrain = "
+                "sih26126_geometry.terrain_geometry:main"
+            ),
+            (
+                "terrain_classifier = "
+                "sih26126_geometry.terrain_classifier:main"
+            ),
         ],
     },
 )
