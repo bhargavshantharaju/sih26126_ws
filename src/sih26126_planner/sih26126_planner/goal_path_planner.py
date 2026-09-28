@@ -6,7 +6,7 @@ from __future__ import annotations
 import math
 from typing import Optional
 
-from geometry_msgs.msg import PoseStamped, Twist
+from geometry_msgs.msg import PointStamped, PoseStamped, Twist
 
 from nav_msgs.msg import Odometry, Path
 
@@ -265,6 +265,13 @@ class GoalPathPlanner(Node):
             10,
         )
 
+        self.exploration_goal_sub = self.create_subscription(
+            PointStamped,
+            '/exploration/goal',
+            self.exploration_goal_callback,
+            10,
+        )
+
         self.path_pub = self.create_publisher(
             Path,
             '/planner/path',
@@ -312,6 +319,20 @@ class GoalPathPlanner(Node):
             f'terrain={terrain_topic} '
             'advisory-only.'
         )
+
+    def exploration_goal_callback(self, msg: PointStamped) -> None:
+        """Track the active map-derived exploration frontier."""
+        goal_x = float(msg.point.x)
+        goal_y = float(msg.point.y)
+        if not (math.isfinite(goal_x) and math.isfinite(goal_y)):
+            return
+        changed = math.hypot(goal_x - self.goal_x, goal_y - self.goal_y) > 0.15
+        self.goal_x = goal_x
+        self.goal_y = goal_y
+        if changed:
+            self.get_logger().info(
+                f'Exploration frontier goal=({goal_x:.2f}, {goal_y:.2f})'
+            )
 
     def now_ns(self) -> int:
         """Return current ROS time in nanoseconds."""

@@ -71,6 +71,106 @@ def finite_mask(xyz: np.ndarray, min_range: float, max_range: float) -> np.ndarr
     )
 
 
+def fit_ground_plane(
+    xyz: np.ndarray,
+    valid: np.ndarray,
+    fit_region: np.ndarray,
+    iterations: int = 100,
+    distance_threshold: float = 0.05,
+    max_slope_degrees: float = 50.0,
+    seed: int = 26126,
+):
+    """Fit the dominant near-horizontal plane and return its inlier mask.
+
+    RANSAC is restricted to a central, lower-image corridor by the caller.
+    Near-vertical planes are rejected so tree trunks and obstacle faces cannot
+    be interpreted as ground. The winning plane is refined with SVD over its
+    inliers to reduce sampling noise.
+    """
+    if xyz.ndim != 3 or xyz.shape[2] != 3:
+        raise ValueError("xyz must have shape HxWx3")
+    if valid.shape != xyz.shape[:2] or fit_region.shape != valid.shape:
+        raise ValueError("valid and fit_region must match xyz image dimensions")
+
+    candidate_mask = valid & fit_region
+    candidate_pixels = np.flatnonzero(candidate_mask)
+    if candidate_pixels.size < 100:
+        return None
+
+    points_all = xyz.reshape(-1, 3)[candidate_pixels].astype(np.float64)
+    finite = np.isfinite(points_all).all(axis=1)
+    candidate_pixels = candidate_pixels[finite]
+    points_all = points_all[finite]
+    if points_all.shape[0] < 100:
+        return None
+
+    # Bound per-frame work while sampling uniformly across the image region.
+    rng = np.random.default_rng(seed)
+    if points_all.shape[0] > 6000:
+        sample_indices = np.sort(rng.choice(points_all.shape[0], 6000, replace=False))
+        points = points_all[sample_indices]
+    else:
+        points = points_all
+
+    min_vertical_normal = math.cos(math.radians(max_slope_degrees))
+    best_inliers = None
+    best_count = 0
+    best_rmse = float("inf")
+
+    for _ in range(max(1, int(iterations))):
+        sample = points[rng.choice(points.shape[0], 3, replace=False)]
+        normal = np.cross(sample[1] - sample[0], sample[2] - sample[0])
+        norm = float(np.linalg.norm(normal))
+        if norm < 1e-8:
+            continue
+        normal /= norm
+        if abs(float(normal[2])) < min_vertical_normal:
+            continue
+        if normal[2] < 0.0:
+            normal *= -1.0
+
+        offset = -float(np.dot(normal, sample[0]))
+        residual = np.abs(points @ normal + offset)
+        inliers = residual <= distance_threshold
+        count = int(np.count_nonzero(inliers))
+        if count < best_count or count < 3:
+            continue
+        rmse = float(np.sqrt(np.mean(residual[inliers] ** 2)))
+        if count > best_count or rmse < best_rmse:
+            best_inliers = inliers
+            best_count = count
+            best_rmse = rmse
+
+    if best_inliers is None or best_count < 100:
+        return None
+
+    inlier_points = points[best_inliers]
+    center = np.mean(inlier_points, axis=0)
+    _, _, vh = np.linalg.svd(inlier_points - center, full_matrices=False)
+    normal = vh[-1]
+    if normal[2] < 0.0:
+        normal *= -1.0
+    if abs(float(normal[2])) < min_vertical_normal:
+        return None
+    offset = -float(np.dot(normal, center))
+
+    # Re-evaluate the refined model on all candidate pixels.
+    residual_all = np.abs(points_all @ normal + offset)
+    inlier_all = residual_all <= distance_threshold
+    if int(np.count_nonzero(inlier_all)) < 100:
+        return None
+    rmse = float(np.sqrt(np.mean(residual_all[inlier_all] ** 2)))
+
+    inlier_mask = np.zeros(valid.size, dtype=bool)
+    inlier_mask[candidate_pixels[inlier_all]] = True
+    return (
+        np.asarray((*normal, offset), dtype=np.float32),
+        inlier_mask.reshape(valid.shape),
+        rmse,
+        int(points_all.shape[0]),
+    )
+
+
 def compute_surface_normals(
     xyz: np.ndarray,
     valid: np.ndarray,
@@ -252,6 +352,9 @@ class TerrainGeometryNode(Node):
         self.declare_parameter("min_range_m", 0.1)
         self.declare_parameter("max_range_m", 15.0)
         self.declare_parameter("roi_y_start", 0.50)
+        self.declare_parameter("roi_x_margin", 0.15)
+        self.declare_parameter("ground_plane_threshold_m", 0.05)
+        self.declare_parameter("ground_plane_max_slope_deg", 50.0)
         self.declare_parameter("roughness_radius", 3)
         self.declare_parameter("publish_hz", 5.0)
 
@@ -259,6 +362,13 @@ class TerrainGeometryNode(Node):
         self.min_range = float(self.get_parameter("min_range_m").value)
         self.max_range = float(self.get_parameter("max_range_m").value)
         self.roi_y_start = float(self.get_parameter("roi_y_start").value)
+        self.roi_x_margin = float(self.get_parameter("roi_x_margin").value)
+        self.ground_plane_threshold = float(
+            self.get_parameter("ground_plane_threshold_m").value
+        )
+        self.ground_plane_max_slope = float(
+            self.get_parameter("ground_plane_max_slope_deg").value
+        )
         self.roughness_radius = int(
             self.get_parameter("roughness_radius").value
         )
@@ -327,23 +437,49 @@ class TerrainGeometryNode(Node):
 
             h = xyz.shape[0]
             y0 = int(round(h * self.roi_y_start))
-            roi = np.zeros_like(valid, dtype=bool)
-            roi[y0:, :] = True
-
-            valid &= roi
-
-            normals = compute_surface_normals(xyz, valid)
-            slope = compute_slope_degrees(normals, valid)
-            roughness = compute_roughness_m(
+            fit_region = np.zeros_like(valid, dtype=bool)
+            x_margin = int(round(xyz.shape[1] * self.roi_x_margin))
+            fit_region[y0:, x_margin:xyz.shape[1] - x_margin] = True
+            plane_result = fit_ground_plane(
                 xyz,
                 valid,
-                radius=self.roughness_radius,
+                fit_region,
+                distance_threshold=self.ground_plane_threshold,
+                max_slope_degrees=self.ground_plane_max_slope,
             )
+            if plane_result is None:
+                self.get_logger().warning(
+                    "Ground-plane estimation failed; terrain geometry is unavailable."
+                )
+                return
 
-            confidence = confidence_from_geometry(
-                valid,
-                normals,
-                roughness,
+            plane, ground_inliers, plane_rmse, candidate_count = plane_result
+            slope_degrees = math.degrees(
+                math.acos(float(np.clip(plane[2], -1.0, 1.0)))
+            )
+            residual = np.abs(
+                np.einsum("ijk,k->ij", xyz, plane[:3]) + float(plane[3])
+            )
+            slope = np.full(valid.shape, np.nan, dtype=np.float32)
+            roughness = np.full(valid.shape, np.nan, dtype=np.float32)
+            slope[ground_inliers] = slope_degrees
+            roughness[ground_inliers] = residual[ground_inliers]
+
+            inlier_count = int(np.count_nonzero(ground_inliers))
+            inlier_ratio = inlier_count / float(max(1, candidate_count))
+            support = min(1.0, inlier_count / 1500.0)
+            consistency = max(
+                0.0,
+                1.0 - plane_rmse / max(self.ground_plane_threshold, 1e-6),
+            )
+            confidence = float(
+                np.clip(
+                    0.50 * support
+                    + 0.30 * min(1.0, inlier_ratio / 0.40)
+                    + 0.20 * consistency,
+                    0.0,
+                    1.0,
+                )
             )
 
             slope_msg = image_from_float(
@@ -364,11 +500,7 @@ class TerrainGeometryNode(Node):
             confidence_msg.data = confidence
             self.confidence_pub.publish(confidence_msg)
 
-            finite_normals = normals[
-                np.isfinite(normals).all(axis=2)
-            ]
-
-            if finite_normals.size:
+            if inlier_count:
                 fields = [
                     PointField(
                         name="nx",
@@ -390,9 +522,10 @@ class TerrainGeometryNode(Node):
                     ),
                 ]
 
-                normal_points = finite_normals.astype(
-                    np.float32
-                ).tolist()
+                normal_points = np.broadcast_to(
+                    plane[:3],
+                    (inlier_count, 3),
+                ).astype(np.float32).tolist()
 
                 normals_msg = point_cloud2.create_cloud(
                     msg.header,
@@ -404,7 +537,7 @@ class TerrainGeometryNode(Node):
             self.frames += 1
 
             if self.frames % 10 == 0:
-                finite_count = int(np.count_nonzero(valid))
+                finite_count = int(np.count_nonzero(ground_inliers))
                 slope_values = slope[np.isfinite(slope)]
                 rough_values = roughness[np.isfinite(roughness)]
 
@@ -421,8 +554,10 @@ class TerrainGeometryNode(Node):
 
                 self.get_logger().info(
                     f"frames={self.frames} "
-                    f"valid={finite_count} "
+                    f"ground_inliers={finite_count} "
                     f"confidence={confidence:.3f} "
+                    f"ground_slope_deg={slope_degrees:.3f} "
+                    f"ground_ratio={inlier_ratio:.3f} "
                     f"mean_slope_deg={slope_mean:.3f} "
                     f"mean_roughness_m={rough_mean:.5f}"
                 )

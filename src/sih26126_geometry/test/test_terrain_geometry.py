@@ -7,6 +7,7 @@ from sih26126_geometry.terrain_geometry import (
     compute_slope_degrees,
     compute_surface_normals,
     finite_mask,
+    fit_ground_plane,
 )
 
 
@@ -60,6 +61,55 @@ def test_twenty_degree_ramp():
 
     assert values.size > 1000
     assert abs(float(np.median(values)) - 20.0) < 2.0
+
+
+def test_ground_plane_fit_rejects_vertical_object_surfaces():
+    xyz = make_ground()
+    height, width, _ = xyz.shape
+
+    # Simulate a broad visible tree trunk patch as a vertical plane.
+    rows = slice(30, 62)
+    cols = slice(48, 74)
+    xyz[rows, cols, 0] = 3.0
+    xyz[rows, cols, 1] = np.linspace(
+        -0.5,
+        0.5,
+        cols.stop - cols.start,
+        dtype=np.float32,
+    )[None, :]
+    xyz[rows, cols, 2] = np.linspace(
+        -1.1,
+        1.8,
+        rows.stop - rows.start,
+        dtype=np.float32,
+    )[:, None]
+
+    valid = finite_mask(xyz, 0.1, 15.0)
+    fit_region = np.ones((height, width), dtype=bool)
+    result = fit_ground_plane(xyz, valid, fit_region)
+
+    assert result is not None
+    plane, ground_inliers, rmse, candidate_count = result
+    slope = math.degrees(math.acos(float(plane[2])))
+
+    assert slope < 0.5
+    assert ground_inliers[rows, cols].mean() < 0.1
+    assert int(ground_inliers.sum()) > 1000
+    assert candidate_count >= int(ground_inliers.sum())
+    assert rmse < 0.002
+
+
+def test_ground_plane_fit_preserves_real_slope():
+    xyz = make_ramp(20.0)
+    valid = finite_mask(xyz, 0.1, 15.0)
+    fit_region = np.ones(valid.shape, dtype=bool)
+
+    result = fit_ground_plane(xyz, valid, fit_region)
+
+    assert result is not None
+    plane, _, _, _ = result
+    slope = math.degrees(math.acos(float(plane[2])))
+    assert abs(slope - 20.0) < 1.0
 
 
 def test_roughness_distinguishes_flat_and_rough():

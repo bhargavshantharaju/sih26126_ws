@@ -8,6 +8,7 @@ from sih26126_planner.local_path_selector import (
     angle_to_pixel,
     build_local_path,
     goal_angle_from_pose,
+    input_is_fresh,
     obstacle_clearance,
     obstacle_clearance_score,
     sample_corridor_score,
@@ -23,6 +24,14 @@ def test_wrap_angle():
     assert math.isclose(wrap_angle(3.5), 3.5 - 2.0 * math.pi)
     assert math.isclose(wrap_angle(math.pi), math.pi)
     assert math.isclose(wrap_angle(-math.pi), math.pi)
+
+
+def test_dynamic_inputs_must_be_recent():
+    """Expired or unavailable depth/pose inputs must stop local motion."""
+    assert input_is_fresh(9.5, 0.75, now=10.0)
+    assert not input_is_fresh(9.0, 0.75, now=10.0)
+    assert not input_is_fresh(None, 0.75, now=10.0)
+    assert not input_is_fresh(10.1, 0.75, now=10.0)
 
 
 def test_goal_angle_straight_ahead():
@@ -214,11 +223,73 @@ def test_obstacle_clearance_does_not_hit_right_corridor():
     assert math.isinf(clearance)
 
 
+def test_obstacle_clearance_detects_close_obstacle():
+    """Detect an obstacle inside the previous 1.0 m blind zone."""
+    ground_x = np.linspace(0.2, 3.0, 160)
+    ground_y = np.zeros_like(ground_x)
+    ground_z = np.zeros_like(ground_x)
+
+    obstacle_x = np.full(20, 0.70)
+    obstacle_y = np.zeros_like(obstacle_x)
+    obstacle_z = np.full(20, 0.70)
+
+    points = np.column_stack(
+        (
+            np.concatenate((ground_x, obstacle_x)),
+            np.concatenate((ground_y, obstacle_y)),
+            np.concatenate((ground_z, obstacle_z)),
+        )
+    )
+
+    clearance = obstacle_clearance(points, 0.0)
+
+    assert math.isfinite(clearance)
+    assert clearance < 1.0
+    assert math.isclose(clearance, 0.70, abs_tol=0.10)
+
+
+def test_goal_behind_robot_selects_maximum_reachable_turn():
+    """A bearing outside the steering envelope requests its nearest edge."""
+    image = np.full((120, 160), 200, dtype=np.uint8)
+    angles = [math.radians(deg) for deg in (-25, -16.7, -8.3, 0, 8.3, 16.7, 25)]
+    selected, _, _ = select_best_candidate(
+        image, angles, 100.0, 80.0, math.radians(-90.0), 0.0,
+        np.empty((0, 3), dtype=np.float32))
+    assert math.isclose(selected, math.radians(-25.0), abs_tol=1e-9)
+
+
 def test_obstacle_clearance_score():
     """Clearance converts monotonically into a normalized score."""
     assert obstacle_clearance_score(1.0) == 0.0
-    assert obstacle_clearance_score(2.5) == 1.0
+    assert obstacle_clearance_score(3.0) == 1.0
+    assert obstacle_clearance_score(2.5) < 1.0
     assert 0.0 < obstacle_clearance_score(1.875) < 1.0
+
+
+def test_candidate_score_prefers_clear_path_from_runtime_case():
+    """A clear candidate outranks the finite-clearance runtime winner."""
+    terrain_score = 0.5267
+    goal_angle = math.radians(-34.1)
+    previous_angle = math.radians(-25.0)
+
+    finite_clearance = score_candidate(
+        terrain_score,
+        1.0,
+        math.radians(-25.0),
+        goal_angle,
+        previous_angle,
+        obstacle_clearance_score(2.2191),
+    )
+    clear_corridor = score_candidate(
+        terrain_score,
+        1.0,
+        math.radians(25.0),
+        goal_angle,
+        previous_angle,
+        obstacle_clearance_score(math.inf),
+    )
+
+    assert clear_corridor > finite_clearance
 
 
 def test_select_candidate_avoids_depth_obstacle():

@@ -1,6 +1,7 @@
 """Spatial local path selection from terrain-aware traversability."""
 
 import math
+import time
 from typing import List, Optional, Sequence, Tuple
 
 from geometry_msgs.msg import Twist
@@ -19,6 +20,16 @@ def wrap_angle(angle: float) -> float:
     if math.isclose(wrapped, -math.pi, abs_tol=1e-12):
         return math.pi
     return wrapped
+
+
+def input_is_fresh(received_at: Optional[float], max_age_s: float,
+                   now: Optional[float] = None) -> bool:
+    """Return whether a monotonic receive time is within its age limit."""
+    if received_at is None or max_age_s < 0.0:
+        return False
+    current = time.monotonic() if now is None else now
+    age = current - received_at
+    return 0.0 <= age <= max_age_s
 
 
 def quaternion_to_yaw(q) -> float:
@@ -182,7 +193,7 @@ def pointcloud_to_array(msg: PointCloud2) -> Optional[np.ndarray]:
 def obstacle_clearance(
     points: np.ndarray,
     candidate_angle: float,
-    x_min: float = 1.0,
+    x_min: float = 0.20,
     x_max: float = 3.0,
     corridor_half_width: float = 0.35,
     min_obstacle_height: float = 0.18,
@@ -279,7 +290,7 @@ def obstacle_clearance(
 def obstacle_clearance_score(
     clearance: float,
     critical_distance: float = 1.25,
-    clear_distance: float = 2.5,
+    clear_distance: float = 3.0,
 ) -> float:
     """Map obstacle clearance to a normalized safety score."""
     if not math.isfinite(clearance):
@@ -351,6 +362,14 @@ def select_best_candidate(
     best_angle = candidate_angles[0]
     best_score = -1.0
     best_obstacle_score = 0.0
+    # The selector can only command angles inside its candidate envelope.
+    # Clamp the desired bearing into that reachable steering range so a goal
+    # behind the robot still selects maximum-turn candidates instead of making
+    # every candidate's goal-alignment score zero (which favors straight).
+    steering_goal = max(
+        min(goal_angle, max(candidate_angles)),
+        min(candidate_angles),
+    )
 
     for angle in candidate_angles:
         pixel = angle_to_pixel(
@@ -374,7 +393,7 @@ def select_best_candidate(
             terrain,
             validity,
             angle,
-            goal_angle,
+            steering_goal,
             previous_angle,
             obstacle_score,
         )
@@ -445,6 +464,9 @@ class LocalPathSelector(Node):
         self.navigation_state = 'UNKNOWN'
         self.global_speed = 0.0
         self.previous_angle = 0.0
+        self.score_map_received_at = None
+        self.pointcloud_received_at = None
+        self.odom_received_at = None
 
         self.candidate_degrees = [-25.0, -16.7, -8.3, 0.0,
                                   8.3, 16.7, 25.0]
@@ -453,6 +475,7 @@ class LocalPathSelector(Node):
         self.declare_parameter('lookahead_m', 3.0)
         self.declare_parameter('publish_hz', 5.0)
         self.declare_parameter('max_angular_speed', 0.6)
+        self.declare_parameter('max_sensor_age_s', 0.75)
 
         self.map_sub = self.create_subscription(
             Image,
@@ -539,6 +562,7 @@ class LocalPathSelector(Node):
     def score_map_callback(self, msg: Image) -> None:
         """Store terrain-aware score map."""
         self.score_map = msg
+        self.score_map_received_at = time.monotonic()
 
     def camera_info_callback(self, msg: CameraInfo) -> None:
         """Store camera calibration."""
@@ -547,10 +571,12 @@ class LocalPathSelector(Node):
     def pointcloud_callback(self, msg: PointCloud2) -> None:
         """Store the latest depth point cloud."""
         self.pointcloud = msg
+        self.pointcloud_received_at = time.monotonic()
 
     def odom_callback(self, msg: Odometry) -> None:
         """Store vehicle odometry."""
         self.odom = msg
+        self.odom_received_at = time.monotonic()
 
     def path_callback(self, msg: Path) -> None:
         """Store global advisory path."""
@@ -612,6 +638,19 @@ class LocalPathSelector(Node):
         if self.pointcloud is None:
             self.publish_stop('WAITING_FOR_DEPTH')
             return
+
+        max_sensor_age = float(
+            self.get_parameter('max_sensor_age_s').value
+        )
+        now = time.monotonic()
+        for received_at, state in (
+            (self.pointcloud_received_at, 'STALE_DEPTH'),
+            (self.score_map_received_at, 'STALE_TRAVERSABILITY'),
+            (self.odom_received_at, 'STALE_LOCALIZATION'),
+        ):
+            if not input_is_fresh(received_at, max_sensor_age, now):
+                self.publish_stop(state)
+                return
 
         image = image_to_array(self.score_map)
         if image is None:
