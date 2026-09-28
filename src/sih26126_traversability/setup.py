@@ -19,6 +19,11 @@ setup(
     install_requires=[
         'setuptools',
     ],
+    extras_require={
+        'test': [
+            'pytest',
+        ],
+    },
     zip_safe=True,
     maintainer='venom',
     maintainer_email='venom@todo.todo',
@@ -28,6 +33,8 @@ setup(
         'console_scripts': [
             'traversability_baseline = '
             'sih26126_traversability.traversability_baseline:main',
+            'terrain_aware_traversability = '
+            'sih26126_traversability.terrain_aware_traversability:main',
         ],
     },
 )

@@ -1,17 +1,28 @@
-<?xml version="1.0"?>
-<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<?xml version='1.0' encoding='utf-8'?>
 <package format="3">
   <name>sih26126_bringup</name>
   <version>0.0.0</version>
   <description>TODO: Package description</description>
   <maintainer email="venom@todo.todo">venom</maintainer>
   <license>Apache-2.0</license>
-
   <buildtool_depend>ament_cmake</buildtool_depend>
-
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>rosgraph_msgs</exec_depend>
+  <exec_depend>sih26126_sensor_contract</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>ros_gz_bridge</exec_depend>
+  <exec_depend>sih26126_sim</exec_depend>
+  <exec_depend>sih26126_dashboard</exec_depend>
+  <exec_depend>sih26126_geometry</exec_depend>
+  <exec_depend>sih26126_perception</exec_depend>
+  <exec_depend>sih26126_planner</exec_depend>
+  <exec_depend>sih26126_autonomy</exec_depend>
+  <exec_depend>sih26126_safety</exec_depend>
+  <exec_depend>sih26126_traversability</exec_depend>
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
-
   <export>
     <build_type>ament_cmake</build_type>
   </export>

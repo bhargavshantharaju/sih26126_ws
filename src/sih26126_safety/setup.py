@@ -15,7 +15,7 @@ setup(
     zip_safe=True,
     maintainer='venom',
     maintainer_email='venom@todo.todo',
-    description='TODO: Package description',
+    description='Safety supervisor for UGV command arbitration',
     license='Apache-2.0',
     extras_require={
         'test': [
@@ -24,6 +24,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'safety_supervisor = '
+            'sih26126_safety.safety_supervisor:main',
         ],
     },
 )
