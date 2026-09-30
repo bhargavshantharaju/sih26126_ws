@@ -10,7 +10,7 @@ from nav_msgs.msg import OccupancyGrid, Odometry
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import PointCloud2
-from std_msgs.msg import String
+from std_msgs.msg import Float32, String
 
 from sih26126_planner.local_path_selector import pointcloud_to_array
 
@@ -67,6 +67,54 @@ def mark_ray(grid: np.ndarray, start, end, occupied: bool) -> None:
         grid[row, col] = 100
 
 
+def mark_ray_with_evidence(grid: np.ndarray, evidence: np.ndarray, start, end,
+                           occupied: bool, free_update: float = 0.4,
+                           hit_update: float = 1.2,
+                           evidence_limit: float = 5.0) -> None:
+    """Integrate one live observation while allowing stale cells to clear.
+
+    Free-ray evidence decreases occupancy confidence; obstacle endpoints
+    increase it. Hysteresis retains occupied cells until repeated free views
+    contradict them, and vice versa.
+    """
+    x0, y0 = int(start[0]), int(start[1])
+    x1, y1 = int(end[0]), int(end[1])
+    dx, dy = abs(x1 - x0), abs(y1 - y0)
+    sx, sy = (1 if x0 < x1 else -1), (1 if y0 < y1 else -1)
+    error = dx - dy
+    cells = []
+    while True:
+        cells.append((x0, y0))
+        if x0 == x1 and y0 == y1:
+            break
+        twice = 2 * error
+        if twice > -dy:
+            error -= dy
+            x0 += sx
+        if twice < dx:
+            error += dx
+            y0 += sy
+
+    free_cells = cells if not occupied else cells[:-1]
+    for col, row in free_cells:
+        if not (0 <= col < grid.shape[1] and 0 <= row < grid.shape[0]):
+            continue
+        evidence[row, col] = max(-evidence_limit,
+                                 evidence[row, col] - free_update)
+        if evidence[row, col] <= -free_update + 1e-6:
+            grid[row, col] = 0
+        elif evidence[row, col] >= hit_update * 0.67:
+            grid[row, col] = 100
+
+    if occupied:
+        col, row = cells[-1]
+        if 0 <= col < grid.shape[1] and 0 <= row < grid.shape[0]:
+            evidence[row, col] = min(evidence_limit,
+                                     evidence[row, col] + hit_update)
+            if evidence[row, col] >= hit_update * 0.67:
+                grid[row, col] = 100
+
+
 def pointcloud_rays(points: np.ndarray, pose_x: float, pose_y: float,
                     yaw: float, resolution: float = MAP_RESOLUTION):
     """Yield bounded map rays from the sampled current sensor cloud."""
@@ -99,6 +147,8 @@ class OdomPoseAdapter(Node):
         super().__init__('localization_pose_adapter')
         self.pose_pub = self.create_publisher(PoseStamped, '/localization/pose', 10)
         self.source_pub = self.create_publisher(String, '/localization/source', 10)
+        self.confidence_pub = self.create_publisher(
+            Float32, '/localization/confidence', 10)
         self.odom_sub = self.create_subscription(
             Odometry, '/model/sih_ugv/odometry', self.odom_callback, 10)
 
@@ -111,6 +161,12 @@ class OdomPoseAdapter(Node):
         source = String()
         source.data = 'Gazebo odometry (ground-truth simulation pose)'
         self.source_pub.publish(source)
+        # Gazebo supplies the simulation pose directly. This confidence
+        # describes availability of that simulated source, not visual SLAM
+        # accuracy or a real-world covariance estimate.
+        confidence = Float32()
+        confidence.data = 1.0
+        self.confidence_pub.publish(confidence)
 
 
 class OnlineMapper(Node):
@@ -119,6 +175,7 @@ class OnlineMapper(Node):
     def __init__(self):
         super().__init__('online_mapper')
         self.grid = np.full((MAP_HEIGHT, MAP_WIDTH), -1, dtype=np.int8)
+        self.occupancy_evidence = np.zeros((MAP_HEIGHT, MAP_WIDTH), dtype=np.float32)
         self.pose: Optional[PoseStamped] = None
         self.cloud: Optional[PointCloud2] = None
         self.cloud_sequence = 0
@@ -157,7 +214,9 @@ class OnlineMapper(Node):
                                      1 - 2 * (q.y * q.y + q.z * q.z))
                     for start, end, occupied in pointcloud_rays(
                             sampled, pos.x, pos.y, yaw):
-                        mark_ray(self.grid, start, end, occupied)
+                        mark_ray_with_evidence(
+                            self.grid, self.occupancy_evidence,
+                            start, end, occupied)
                     self.integrated_sequence = self.cloud_sequence
         msg = OccupancyGrid()
         msg.header.stamp = self.get_clock().now().to_msg()

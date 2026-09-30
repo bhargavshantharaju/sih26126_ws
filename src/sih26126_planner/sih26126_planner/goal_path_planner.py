@@ -75,6 +75,29 @@ def navigation_state(
     return 'NAVIGATE'
 
 
+def route_lookahead_target(
+    path: Path,
+    x: float,
+    y: float,
+    lookahead_m: float = 0.85,
+):
+    """Choose a point ahead along the supplied map route, not its distant endpoint."""
+    if not path.poses:
+        return None
+    nearest = min(range(len(path.poses)), key=lambda i: math.hypot(
+        path.poses[i].pose.position.x - x, path.poses[i].pose.position.y - y))
+    selected = nearest
+    distance = 0.0
+    for index in range(nearest + 1, len(path.poses)):
+        previous = path.poses[index - 1].pose.position
+        current = path.poses[index].pose.position
+        distance += math.hypot(current.x - previous.x, current.y - previous.y)
+        selected = index
+        if distance >= max(0.0, lookahead_m):
+            break
+    return path.poses[selected].pose.position
+
+
 def build_straight_path(
     x: float,
     y: float,
@@ -160,7 +183,7 @@ class GoalPathPlanner(Node):
         )
         self.declare_parameter(
             'goal_x',
-            6.0,
+            0.0,
         )
         self.declare_parameter(
             'goal_y',
@@ -190,6 +213,9 @@ class GoalPathPlanner(Node):
             'max_input_age_s',
             1.0,
         )
+        self.declare_parameter('route_lookahead_m', 0.85)
+        self.declare_parameter('slowdown_distance_m', 1.5)
+        self.declare_parameter('minimum_near_goal_speed_ratio', 0.25)
 
         odom_topic = str(
             self.get_parameter('odom_topic').value
@@ -271,6 +297,15 @@ class GoalPathPlanner(Node):
             self.exploration_goal_callback,
             10,
         )
+        self.mission_goal_sub = self.create_subscription(
+            PointStamped, '/mission/goal', self.mission_goal_callback, 10)
+        self.mission_state_sub = self.create_subscription(
+            String, '/mission/state', self.mission_state_callback, 10)
+        self.global_path_sub = self.create_subscription(
+            Path, '/planner/global_path', self.global_path_callback, 10)
+        self.mission_state = ''
+        self.global_path: Optional[Path] = None
+        self.has_goal = False
 
         self.path_pub = self.create_publisher(
             Path,
@@ -322,6 +357,8 @@ class GoalPathPlanner(Node):
 
     def exploration_goal_callback(self, msg: PointStamped) -> None:
         """Track the active map-derived exploration frontier."""
+        if self.mission_state == 'RETURNING_HOME':
+            return
         goal_x = float(msg.point.x)
         goal_y = float(msg.point.y)
         if not (math.isfinite(goal_x) and math.isfinite(goal_y)):
@@ -329,10 +366,24 @@ class GoalPathPlanner(Node):
         changed = math.hypot(goal_x - self.goal_x, goal_y - self.goal_y) > 0.15
         self.goal_x = goal_x
         self.goal_y = goal_y
+        self.has_goal = True
         if changed:
             self.get_logger().info(
                 f'Exploration frontier goal=({goal_x:.2f}, {goal_y:.2f})'
             )
+
+    def mission_goal_callback(self, msg: PointStamped) -> None:
+        """Use the mission controller's home goal during return."""
+        if self.mission_state == 'RETURNING_HOME':
+            self.goal_x = float(msg.point.x)
+            self.goal_y = float(msg.point.y)
+            self.has_goal = True
+
+    def mission_state_callback(self, msg: String) -> None:
+        self.mission_state = msg.data
+
+    def global_path_callback(self, msg: Path) -> None:
+        self.global_path = msg
 
     def now_ns(self) -> int:
         """Return current ROS time in nanoseconds."""
@@ -435,10 +486,35 @@ class GoalPathPlanner(Node):
 
     def process(self) -> None:
         """Publish the current path and advisory motion decision."""
+        if self.mission_state in ('MISSION_COMPLETE', 'SAFE_STOP', 'FAILED'):
+            self.publish_state(self.mission_state)
+            self.publish_zero_outputs()
+            return
+        if not self.has_goal:
+            self.publish_state('WAITING_FOR_EXPLORATION_GOAL')
+            self.publish_zero_outputs()
+            return
+        if (self.mission_state == 'RETURNING_HOME'
+                and (self.global_path is None or not self.global_path.poses)):
+            self.publish_state('WAITING_HOME_ROUTE')
+            self.publish_zero_outputs()
+            return
+        if (self.mission_state == 'EXPLORING'
+                and (self.global_path is None or not self.global_path.poses)):
+            self.publish_state('WAITING_FOR_MAP_ROUTE')
+            self.publish_zero_outputs()
+            return
         if not self.odom_is_fresh():
             self.publish_state(
                 'WAITING_POSE'
             )
+            self.publish_zero_outputs()
+            return
+
+        if (self.global_path is not None and self.global_path.poses
+                and self.global_path.header.frame_id and self.odom_frame
+                and self.global_path.header.frame_id != self.odom_frame):
+            self.publish_state('PATH_FRAME_MISMATCH')
             self.publish_zero_outputs()
             return
 
@@ -458,6 +534,21 @@ class GoalPathPlanner(Node):
             self.get_clock().now().to_msg(),
             self.path_resolution_m,
         )
+
+        # Follow the accumulated occupancy-grid route when available. The
+        # local selector receives the next map-derived waypoint as its goal.
+        if self.global_path is not None and self.global_path.poses:
+            target = route_lookahead_target(
+                self.global_path, self.current_x, self.current_y,
+                float(self.get_parameter('route_lookahead_m').value))
+            if target is None:
+                self.publish_state('WAITING_FOR_MAP_ROUTE')
+                self.publish_zero_outputs()
+                return
+            path = build_straight_path(
+                self.current_x, self.current_y, target.x, target.y,
+                self.odom_frame, self.get_clock().now().to_msg(),
+                self.path_resolution_m)
 
         self.path_pub.publish(path)
 
@@ -509,6 +600,14 @@ class GoalPathPlanner(Node):
         linear_speed = base_speed * (
             0.25 + 0.75 * heading_factor
         )
+        if self.mission_state == 'RETURNING_HOME':
+            slowdown_distance = max(0.1, float(
+                self.get_parameter('slowdown_distance_m').value))
+            minimum_ratio = max(0.0, min(1.0, float(
+                self.get_parameter('minimum_near_goal_speed_ratio').value)))
+            near_goal_ratio = minimum_ratio + (1.0 - minimum_ratio) * min(
+                1.0, distance / slowdown_distance)
+            linear_speed *= near_goal_ratio
 
         angular_speed = max(
             -self.max_angular_speed_rps,

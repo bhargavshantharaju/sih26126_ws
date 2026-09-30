@@ -214,6 +214,16 @@
         <topic>depth_camera</topic>
       </sensor>
 
+      <!-- Collision telemetry used by the bounded autonomy benchmark. -->
+      <sensor name="chassis_contact" type="contact">
+        <always_on>1</always_on>
+        <update_rate>20</update_rate>
+        <topic>ugv_contacts</topic>
+        <contact>
+          <collision>chassis_collision</collision>
+        </contact>
+      </sensor>
+
 
     </link>
 

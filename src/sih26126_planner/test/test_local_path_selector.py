@@ -11,9 +11,11 @@ from sih26126_planner.local_path_selector import (
     input_is_fresh,
     obstacle_clearance,
     obstacle_clearance_score,
+    obstacle_return_evidence,
     sample_corridor_score,
     score_candidate,
     select_best_candidate,
+    waypoint_command,
     wrap_angle,
 )
 
@@ -370,3 +372,48 @@ def test_build_left_path():
     )
 
     assert path.poses[-1].pose.position.y > 0.0
+
+
+def test_waypoint_outside_local_steering_range_rotates_without_translation():
+    command = waypoint_command(
+        math.radians(90), math.radians(25), 0.2, 1.0)
+    assert command.linear.x == 0.0
+    assert command.angular.z > 0.0
+
+
+def test_obstacle_evidence_comes_from_depth_returns():
+    ground_x = np.linspace(0.5, 2.5, 80)
+    ground_y = np.linspace(-0.3, 0.3, 10)
+    gx, gy = np.meshgrid(ground_x, ground_y)
+    ground = np.column_stack((gx.ravel(), gy.ravel(), np.full(gx.size, -1.12)))
+    ox, oy = np.meshgrid(np.linspace(1.0, 1.2, 12), np.linspace(-0.1, 0.1, 10))
+    obstacle = np.column_stack((ox.ravel(), oy.ravel(), np.full(ox.size, -0.7)))
+    evidence = obstacle_return_evidence(np.vstack((ground, obstacle)), 0.0)
+    assert evidence['valid_points'] > 0
+    assert evidence['obstacle_points'] > 0
+    assert evidence['raw_clearance_m'] is not None
+    assert evidence['selected_corridor_clearance_m'] is not None
+
+
+def test_clear_depth_corridor_has_null_instead_of_infinite_clearance():
+    x = np.linspace(0.5, 2.5, 80)
+    y = np.linspace(-0.3, 0.3, 10)
+    xx, yy = np.meshgrid(x, y)
+    ground = np.column_stack((xx.ravel(), yy.ravel(),
+                              np.full(xx.size, -1.12)))
+    evidence = obstacle_return_evidence(ground, 0.0)
+    assert evidence['obstacle_points'] == 0
+    assert evidence['raw_clearance_m'] is None
+    assert evidence['selected_corridor_clearance_m'] is None
+
+
+def test_clear_obstacle_corridor_allows_goal_directed_translation():
+    command = waypoint_command(0.1, 0.05, 0.2, 1.0)
+    assert command.linear.x > 0.0
+    assert math.isclose(command.angular.z, 0.09)
+
+
+def test_blocked_local_corridor_stops_recommended_command():
+    command = waypoint_command(0.0, 0.0, 0.2, 0.0)
+    assert command.linear.x == 0.0
+    assert command.angular.z == 0.0

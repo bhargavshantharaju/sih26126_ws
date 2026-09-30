@@ -4,7 +4,7 @@ import math
 import time
 from typing import Optional, Tuple
 
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import PoseStamped, Twist
 import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
@@ -67,8 +67,11 @@ def safety_decision(
     command_age: float,
     state_age: float,
     obstacle_age: float,
+    localization_age: float = 0.0,
+    localization_confidence: Optional[float] = 1.0,
     timeout: float = 0.75,
     obstacle_stop_threshold: float = 0.01,
+    localization_confidence_threshold: float = 0.2,
 ) -> Tuple[Twist, str]:
     """Determine whether an advisory command may reach /cmd_vel."""
     zero = Twist()
@@ -78,6 +81,14 @@ def safety_decision(
 
     if state_age > timeout:
         return zero, 'STALE_NAVIGATION_STATE'
+
+    if localization_age > timeout:
+        return zero, 'STALE_LOCALIZATION'
+
+    if (localization_confidence is None
+            or not finite(localization_confidence)
+            or localization_confidence < localization_confidence_threshold):
+        return zero, 'LOW_LOCALIZATION_CONFIDENCE'
 
     if navigation_state == 'LOCAL_STOP_OBSTACLE':
         return zero, 'OBSTACLE_STOP'
@@ -117,16 +128,19 @@ class SafetySupervisor(Node):
         self.command: Optional[Twist] = None
         self.navigation_state: Optional[str] = None
         self.obstacle_score: Optional[float] = None
+        self.localization_confidence: Optional[float] = None
 
         self.command_time = None
         self.state_time = None
         self.obstacle_time = None
+        self.localization_pose_time = None
 
         self.declare_parameter('timeout_sec', 0.75)
         self.declare_parameter('obstacle_stop_threshold', 0.01)
         self.declare_parameter('max_linear_speed', 0.30)
         self.declare_parameter('max_angular_speed', 0.60)
         self.declare_parameter('publish_hz', 10.0)
+        self.declare_parameter('localization_confidence_threshold', 0.2)
 
         self.command_sub = self.create_subscription(
             Twist,
@@ -146,6 +160,20 @@ class SafetySupervisor(Node):
             Float32,
             '/planner/local_obstacle_score',
             self.obstacle_callback,
+            10,
+        )
+
+        self.localization_sub = self.create_subscription(
+            Float32,
+            '/localization/confidence',
+            self.localization_callback,
+            10,
+        )
+
+        self.localization_pose_sub = self.create_subscription(
+            PoseStamped,
+            '/localization/pose',
+            self.localization_pose_callback,
             10,
         )
 
@@ -190,6 +218,14 @@ class SafetySupervisor(Node):
         self.obstacle_score = float(msg.data)
         self.obstacle_time = time.monotonic()
 
+    def localization_callback(self, msg: Float32) -> None:
+        """Store the latest confidence value; pose freshness is tracked directly."""
+        self.localization_confidence = float(msg.data)
+
+    def localization_pose_callback(self, _msg: PoseStamped) -> None:
+        """Track freshness of the actual localization pose used by navigation."""
+        self.localization_pose_time = time.monotonic()
+
     def age_seconds(self, timestamp) -> float:
         """Return age of a received message using monotonic time."""
         if timestamp is None:
@@ -229,6 +265,7 @@ class SafetySupervisor(Node):
         command_age = self.age_seconds(self.command_time)
         state_age = self.age_seconds(self.state_time)
         obstacle_age = self.age_seconds(self.obstacle_time)
+        localization_age = self.age_seconds(self.localization_pose_time)
 
         safe_command, reason = safety_decision(
             self.navigation_state,
@@ -237,8 +274,13 @@ class SafetySupervisor(Node):
             command_age,
             state_age,
             obstacle_age,
+            localization_age=localization_age,
+            localization_confidence=self.localization_confidence,
             timeout=timeout,
             obstacle_stop_threshold=obstacle_threshold,
+            localization_confidence_threshold=float(
+                self.get_parameter('localization_confidence_threshold').value
+            ),
         )
 
         # Apply configured limits one more time at the node boundary.

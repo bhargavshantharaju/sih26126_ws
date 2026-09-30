@@ -1,10 +1,11 @@
 """Spatial local path selection from terrain-aware traversability."""
 
+import json
 import math
 import time
 from typing import List, Optional, Sequence, Tuple
 
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import PoseStamped, Twist
 from nav_msgs.msg import Odometry, Path
 import numpy as np
 import rclpy
@@ -308,6 +309,61 @@ def obstacle_clearance_score(
     )
 
 
+def obstacle_return_evidence(points: Optional[np.ndarray], selected_angle: float):
+    """Summarize actual depth returns in the forward field and selected corridor."""
+    if points is None or not np.asarray(points).size:
+        return {'valid_points': 0, 'forward_points': 0,
+                'obstacle_points': 0, 'raw_clearance_m': None}
+    points = np.asarray(points, dtype=np.float32)
+    valid = np.isfinite(points[:, :3]).all(axis=1)
+    points = points[valid]
+    forward = points[(points[:, 0] >= 0.20) & (points[:, 0] <= 3.0)
+                     & (points[:, 0] > 0.0)]
+    if not len(forward):
+        return {'valid_points': int(np.count_nonzero(valid)), 'forward_points': 0,
+                'obstacle_points': 0, 'raw_clearance_m': None}
+    x, y, z = forward[:, 0], forward[:, 1], forward[:, 2]
+    corridor = np.abs(y - x * math.tan(selected_angle)) <= 0.35 + 0.06 * np.maximum(x - 0.20, 0.0)
+    obstacle_mask = np.zeros(len(forward), dtype=bool)
+    for lower, upper in zip(np.linspace(0.20, 3.0, 9)[:-1],
+                            np.linspace(0.20, 3.0, 9)[1:]):
+        in_bin = (x >= lower) & (x < upper)
+        if np.count_nonzero(in_bin) < 5:
+            continue
+        ground = float(np.percentile(z[in_bin], 30.0))
+        obstacle_mask |= in_bin & ((z - ground) >= 0.18) & ((z - ground) <= 1.2)
+    distances = np.hypot(x[obstacle_mask], y[obstacle_mask])
+    selected_corridor_clearance = obstacle_clearance(forward, selected_angle)
+    return {
+        'valid_points': int(len(points)),
+        'forward_points': int(len(forward)),
+        'obstacle_points': int(np.count_nonzero(obstacle_mask)),
+        'selected_corridor_obstacle_points': int(np.count_nonzero(obstacle_mask & corridor)),
+        'raw_clearance_m': (None if not len(distances) else float(np.min(distances))),
+        'selected_corridor_clearance_m': (
+            selected_corridor_clearance
+            if math.isfinite(selected_corridor_clearance) else None),
+        'selected_steering_rad': float(selected_angle),
+    }
+
+
+def waypoint_command(goal_angle: float, steering_angle: float, global_speed: float,
+                     obstacle_score: float, max_angle: float = math.radians(25.0),
+                     max_angular: float = 0.6, rotate_threshold: float = math.radians(5.0),
+                     stop_score: float = 0.01) -> Twist:
+    """Rotate toward a map waypoint before translating; stop for blocked corridors."""
+    cmd = Twist()
+    if obstacle_score <= stop_score:
+        return cmd
+    if abs(goal_angle) > max_angle + rotate_threshold:
+        cmd.angular.z = math.copysign(min(max_angular, 0.45), goal_angle)
+        return cmd
+    speed_scale = 0.35 + 0.65 * obstacle_score
+    cmd.linear.x = max(0.0, min(global_speed * speed_scale, 0.30))
+    cmd.angular.z = max(-max_angular, min(max_angular, 1.8 * steering_angle))
+    return cmd
+
+
 def score_candidate(
     terrain_score: float,
     validity: float,
@@ -336,17 +392,16 @@ def score_candidate(
     )
 
     base_score = (
-        0.55 * terrain_score
-        + 0.15 * goal_alignment
+        0.40 * terrain_score
+        + 0.35 * goal_alignment
         + 0.05 * smoothness
         + 0.05 * validity
     )
 
-    # Obstacle clearance is safety-gating rather than just another
-    # preference. A zero clearance score produces zero candidate score.
-    return base_score * (
-        0.20 + 0.80 * obstacle_score
-    )
+    # Clearance is a safety preference. Squaring its normalized score gives
+    # a visible penalty to constrained corridors while leaving clear lanes
+    # unchanged; the independent local stop and supervisor remain authoritative.
+    return base_score * obstacle_score * obstacle_score
 
 
 def select_best_candidate(
@@ -357,11 +412,13 @@ def select_best_candidate(
     goal_angle: float,
     previous_angle: float,
     points: Optional[np.ndarray] = None,
+    switch_margin: float = 0.04,
 ) -> Tuple[float, float, float]:
     """Select the candidate with highest terrain/obstacle score."""
     best_angle = candidate_angles[0]
     best_score = -1.0
     best_obstacle_score = 0.0
+    scores = []
     # The selector can only command angles inside its candidate envelope.
     # Clamp the desired bearing into that reachable steering range so a goal
     # behind the robot still selects maximum-turn candidates instead of making
@@ -402,6 +459,12 @@ def select_best_candidate(
             best_score = combined
             best_angle = angle
             best_obstacle_score = obstacle_score
+        scores.append((angle, combined, obstacle_score))
+
+    previous = next((item for item in scores if math.isclose(
+        item[0], previous_angle, abs_tol=1e-9)), None)
+    if previous is not None and previous[1] >= best_score - max(0.0, switch_margin):
+        return previous[0], previous[1], previous[2]
 
     return best_angle, best_score, best_obstacle_score
 
@@ -437,8 +500,6 @@ def build_local_path(
             + local_y * math.cos(yaw)
         )
 
-        from geometry_msgs.msg import PoseStamped
-
         pose = PoseStamped()
         pose.header.frame_id = 'odom'
         pose.pose.position.x = world_x
@@ -463,6 +524,8 @@ class LocalPathSelector(Node):
         self.global_path: Optional[Path] = None
         self.navigation_state = 'UNKNOWN'
         self.global_speed = 0.0
+        self.mission_state = ''
+        self.home_pose = None
         self.previous_angle = 0.0
         self.score_map_received_at = None
         self.pointcloud_received_at = None
@@ -519,6 +582,10 @@ class LocalPathSelector(Node):
             self.speed_callback,
             10,
         )
+        self.mission_sub = self.create_subscription(
+            String, '/mission/state', self.mission_callback, 10)
+        self.home_sub = self.create_subscription(
+            PoseStamped, '/mission/home_pose', self.home_callback, 10)
 
         self.local_path_pub = self.create_publisher(
             Path,
@@ -555,6 +622,11 @@ class LocalPathSelector(Node):
             '/planner/local_recommended_cmd_vel',
             10,
         )
+        self.raw_clearance_pub = self.create_publisher(
+            Float32, '/planner/raw_obstacle_clearance', 10)
+        self.obstacle_evidence_pub = self.create_publisher(
+            String, '/planner/obstacle_evidence', 10)
+        self.declare_parameter('steering_switch_margin', 0.04)
 
         hz = max(0.5, float(self.get_parameter('publish_hz').value))
         self.timer = self.create_timer(1.0 / hz, self.process)
@@ -590,6 +662,12 @@ class LocalPathSelector(Node):
         """Store global recommended speed."""
         self.global_speed = max(0.0, float(msg.data))
 
+    def mission_callback(self, msg: String) -> None:
+        self.mission_state = msg.data
+
+    def home_callback(self, msg: PoseStamped) -> None:
+        self.home_pose = msg.pose
+
     def publish_stop(self, state: str) -> None:
         """Publish zero advisory motion."""
         state_msg = String()
@@ -621,6 +699,12 @@ class LocalPathSelector(Node):
 
     def process(self) -> None:
         """Evaluate candidate local paths."""
+        if self.mission_state == 'MISSION_COMPLETE':
+            self.publish_stop('MISSION_COMPLETE')
+            return
+        if self.mission_state == 'FINAL_ALIGNMENT':
+            self.process_final_alignment()
+            return
         if self.navigation_state != 'NAVIGATE':
             self.publish_stop(self.navigation_state)
             return
@@ -633,6 +717,12 @@ class LocalPathSelector(Node):
             or not self.global_path.poses
         ):
             self.publish_stop('WAITING_FOR_DATA')
+            return
+
+        path_frame = self.global_path.header.frame_id
+        pose_frame = self.odom.header.frame_id
+        if path_frame and pose_frame and path_frame != pose_frame:
+            self.publish_stop('PATH_POSE_FRAME_MISMATCH')
             return
 
         if self.pointcloud is None:
@@ -697,8 +787,14 @@ class LocalPathSelector(Node):
                 goal_angle,
                 self.previous_angle,
                 points,
+                float(self.get_parameter('steering_switch_margin').value),
             )
         )
+
+        evidence = obstacle_return_evidence(points, selected_angle)
+        self.obstacle_evidence_pub.publish(String(data=json.dumps(evidence, sort_keys=True)))
+        if evidence['raw_clearance_m'] is not None:
+            self.raw_clearance_pub.publish(Float32(data=evidence['raw_clearance_m']))
 
         selected_clearance = obstacle_clearance(
             points,
@@ -746,16 +842,13 @@ class LocalPathSelector(Node):
 
         self.local_path_pub.publish(local_path)
 
-        cmd = Twist()
-
         # Stop advisory motion when the selected corridor is critically
         # obstructed.
         if selected_obstacle_score <= 0.01:
             state_msg = String()
             state_msg.data = 'LOCAL_STOP_OBSTACLE'
             self.local_state_pub.publish(state_msg)
-            self.local_cmd_pub.publish(cmd)
-
+            self.local_cmd_pub.publish(Twist())
             self.get_logger().warn(
                 f'local obstacle stop: clearance='
                 f'{min(selected_clearance, 3.0):.2f} m',
@@ -763,26 +856,12 @@ class LocalPathSelector(Node):
             )
             return
 
-        # The global planner supplies the speed ceiling.
-        speed_scale = 0.35 + 0.65 * selected_obstacle_score
-        cmd.linear.x = max(
-            0.0,
-            min(
-                self.global_speed * speed_scale,
-                0.30,
-            ),
-        )
-
         max_angular = float(
             self.get_parameter('max_angular_speed').value
         )
-        cmd.angular.z = max(
-            -max_angular,
-            min(
-                max_angular,
-                1.8 * selected_angle,
-            ),
-        )
+        cmd = waypoint_command(
+            goal_angle, selected_angle, self.global_speed, selected_obstacle_score,
+            max_angle=max_angle, max_angular=max_angular)
 
         self.local_cmd_pub.publish(cmd)
 
@@ -795,6 +874,31 @@ class LocalPathSelector(Node):
             f'speed={cmd.linear.x:.3f}',
             throttle_duration_sec=2.0,
         )
+
+    def process_final_alignment(self) -> None:
+        """Rotate in place to the captured startup heading with fresh inputs."""
+        if self.odom is None or self.home_pose is None:
+            self.publish_stop('WAITING_FOR_HOME_ALIGNMENT_DATA')
+            return
+        now = time.monotonic()
+        age_limit = float(self.get_parameter('max_sensor_age_s').value)
+        for received_at, name in ((self.odom_received_at, 'STALE_LOCALIZATION'),
+                                  (self.pointcloud_received_at, 'STALE_DEPTH')):
+            if not input_is_fresh(received_at, age_limit, now):
+                self.publish_stop(name)
+                return
+        current = quaternion_to_yaw(self.odom.pose.pose.orientation)
+        desired = quaternion_to_yaw(self.home_pose.orientation)
+        error = wrap_angle(desired - current)
+        cmd = Twist()
+        if abs(error) > 0.06:
+            cmd.angular.z = max(-0.35, min(0.35, 1.2 * error))
+        self.local_state_pub.publish(String(data='LOCAL_NAVIGATE'))
+        self.local_obstacle_score_pub.publish(Float32(data=1.0))
+        self.local_obstacle_clearance_pub.publish(Float32(data=3.0))
+        self.local_score_pub.publish(Float32(data=1.0))
+        self.local_angle_pub.publish(Float32(data=0.0))
+        self.local_cmd_pub.publish(cmd)
 
 
 def main(args=None) -> None:

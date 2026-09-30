@@ -15,6 +15,12 @@ def generate_launch_description():
     dashboard_port = LaunchConfiguration('dashboard_port')
     gui = LaunchConfiguration('gui')
     start_dashboard = LaunchConfiguration('start_dashboard')
+    exploration_radius = LaunchConfiguration('exploration_radius_m')
+    frontier_threshold = LaunchConfiguration('frontier_threshold')
+    minimum_completed_frontiers = LaunchConfiguration('minimum_completed_frontiers')
+    minimum_explored_area = LaunchConfiguration('minimum_explored_area_m2')
+    mission_name = LaunchConfiguration('mission_name')
+    mission_timeout = LaunchConfiguration('mission_timeout_sec')
     gz = shutil.which('gz')
     if gz is None:
         raise RuntimeError('Gazebo executable `gz` is not available on PATH.')
@@ -41,6 +47,32 @@ def generate_launch_description():
         'gui',
         default_value='false',
         description='Show the Gazebo GUI when true; otherwise run server-only.',
+    )
+
+    exploration_radius_arg = DeclareLaunchArgument(
+        'exploration_radius_m',
+        default_value='1000.0',
+        description='Bounded exploration radius from the captured home pose.',
+    )
+    frontier_threshold_arg = DeclareLaunchArgument(
+        'frontier_threshold', default_value='0',
+        description='Raw frontier cell count treated as exhausted below this value.',
+    )
+    minimum_completed_frontiers_arg = DeclareLaunchArgument(
+        'minimum_completed_frontiers', default_value='3',
+        description='Minimum count of reached frontier targets before returning.',
+    )
+    minimum_explored_area_arg = DeclareLaunchArgument(
+        'minimum_explored_area_m2', default_value='24.0',
+        description='Minimum observed map area before the return-home phase.',
+    )
+    mission_name_arg = DeclareLaunchArgument(
+        'mission_name', default_value='autonomous_outdoor_mission',
+        description='Name recorded in the mission result artifact.',
+    )
+    mission_timeout_arg = DeclareLaunchArgument(
+        'mission_timeout_sec', default_value='600.0',
+        description='Failure cutoff in seconds; never used as exploration completion.',
     )
 
     gazebo_gui = ExecuteProcess(
@@ -87,6 +119,7 @@ def generate_launch_description():
             '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
             '/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist',
             '/model/sih_ugv/odometry@nav_msgs/msg/Odometry[gz.msgs.Odometry',
+            '/ugv_contacts@ros_gz_interfaces/msg/Contacts[gz.msgs.Contacts',
         ],
     )
 
@@ -151,6 +184,21 @@ def generate_launch_description():
         executable='frontier_explorer',
         name='frontier_explorer',
         output='screen',
+        parameters=[{'exploration_radius_m': exploration_radius}],
+    )
+
+    mission_manager = Node(
+        package='sih26126_autonomy',
+        executable='mission_manager',
+        name='mission_manager',
+        output='screen',
+        parameters=[{
+            'frontier_threshold': frontier_threshold,
+            'minimum_completed_frontiers': minimum_completed_frontiers,
+            'minimum_explored_area': minimum_explored_area,
+            'mission_name': mission_name,
+            'mission_timeout_sec': mission_timeout,
+        }],
     )
 
     planner = Node(
@@ -165,7 +213,6 @@ def generate_launch_description():
         executable='local_path_selector',
         name='local_path_selector',
         output='screen',
-        remappings=[('/planner/path', '/planner/global_path')],
     )
 
     safety_supervisor = Node(
@@ -191,6 +238,12 @@ def generate_launch_description():
         dashboard_port_arg,
         start_dashboard_arg,
         gui_arg,
+        exploration_radius_arg,
+        frontier_threshold_arg,
+        minimum_completed_frontiers_arg,
+        minimum_explored_area_arg,
+        mission_name_arg,
+        mission_timeout_arg,
         gazebo_gui,
         gazebo_headless,
 
@@ -227,6 +280,6 @@ def generate_launch_description():
 
         TimerAction(
             period=9.0,
-            actions=[frontier_explorer],
+            actions=[frontier_explorer, mission_manager],
         ),
     ])

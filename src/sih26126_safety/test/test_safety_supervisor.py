@@ -1,6 +1,8 @@
 """Tests for the safety supervisor."""
 
+import ast
 import math
+from pathlib import Path
 
 from geometry_msgs.msg import Twist
 
@@ -18,6 +20,8 @@ def valid_context():
         'command_age': 0.1,
         'state_age': 0.1,
         'obstacle_age': 0.1,
+        'localization_age': 0.1,
+        'localization_confidence': 1.0,
     }
 
 
@@ -85,6 +89,32 @@ def test_stale_state_stops():
     )
 
     assert reason == 'STALE_NAVIGATION_STATE'
+    assert math.isclose(result.linear.x, 0.0)
+
+
+def test_stale_localization_stops():
+    """An expired localization pose heartbeat stops motion at the safety boundary."""
+    command = Twist()
+    command.linear.x = 0.2
+    context = valid_context()
+    context['localization_age'] = 1.0
+
+    result, reason = safety_decision(command=command, **context)
+
+    assert reason == 'STALE_LOCALIZATION'
+    assert math.isclose(result.linear.x, 0.0)
+
+
+def test_low_localization_confidence_stops():
+    """Localization confidence below threshold prevents actuation."""
+    command = Twist()
+    command.linear.x = 0.2
+    context = valid_context()
+    context['localization_confidence'] = 0.1
+
+    result, reason = safety_decision(command=command, **context)
+
+    assert reason == 'LOW_LOCALIZATION_CONFIDENCE'
     assert math.isclose(result.linear.x, 0.0)
 
 
@@ -189,3 +219,24 @@ def test_sanitize_removes_lateral_components():
     assert math.isclose(result.angular.x, 0.0)
     assert math.isclose(result.angular.y, 0.0)
     assert math.isclose(result.angular.z, 0.1)
+
+
+def test_safety_supervisor_is_the_only_cmd_vel_publisher():
+    """Autonomy/planning modules must publish recommendations, not actuation."""
+    source_root = Path(__file__).resolve().parents[3] / 'src'
+    publishers = []
+    for source in source_root.rglob('*.py'):
+        tree = ast.parse(source.read_text(encoding='utf-8'))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            if not (isinstance(node.func, ast.Attribute)
+                    and node.func.attr == 'create_publisher'
+                    and len(node.args) >= 2
+                    and isinstance(node.args[1], ast.Constant)
+                    and node.args[1].value == '/cmd_vel'):
+                continue
+            publishers.append(source.resolve())
+    assert publishers == [
+        (source_root / 'sih26126_safety/sih26126_safety/safety_supervisor.py').resolve()
+    ]

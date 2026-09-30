@@ -75,9 +75,12 @@ Open the localhost URL printed by the dashboard. If the requested port is occupi
 
 - Sensors: `/camera`, `/camera_info`, `/depth_camera/points`, `/imu`.
 - Pose: `/model/sih_ugv/odometry` and the explicitly labeled `/localization/pose` adapter output.
+- Localization contract: `/localization/pose`, `/localization/source`, and `/localization/confidence`. The current confidence value indicates that the Gazebo pose source is available; it is not a visual odometry accuracy estimate.
 - Mapping/exploration: `/map`, `/mapping/state`, `/exploration/state`, `/exploration/frontiers`, `/exploration/goal`.
 - Planning: `/planner/global_path`, `/planner/local_path`, `/planner/local_steering_angle`, `/planner/local_obstacle_clearance`, `/planner/local_obstacle_score`.
 - Velocity advisory: `/planner/recommended_speed` is terrain- and heading-aware; `/planner/local_recommended_cmd_vel` applies the selected corridor's obstacle factor.
 - Safety/motion: `/safety/state`, `/safety/reason`, `/cmd_vel`.
+
+The safety supervisor independently requires fresh `/localization/confidence` as well as a fresh planner state, command, and obstacle score. Missing, stale, non-finite, or low localization confidence results in a zero `/cmd_vel`. This protects the simulation adapter contract; it does not convert Gazebo odometry into visual localization. ROS nodes currently use their default clock behavior; `/clock` is bridged, but the full launch does not enable `use_sim_time` across nodes.
 
 The global explorer’s `NO_FRONTIER` status means no reachable frontier is currently available in the observed free map; it does not certify that the whole world has been explored.

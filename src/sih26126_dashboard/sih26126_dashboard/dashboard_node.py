@@ -132,7 +132,9 @@ STATE = {
     'map_last': None, 'map': None, 'mapping_state': 'INITIALIZING',
     'exploration_state': 'MAPPING', 'frontier_count': 0, 'explored_percent': 0.0,
     'frontier_distance': None, 'goal': None, 'global_path': [], 'local_path': [],
-    'frontiers': [],
+    'frontiers': [], 'mission_state': 'INITIALIZING', 'home': None,
+    'known_area_m2': None, 'home_logged': False,
+    'mission_reason': '', 'mission_metrics': None, 'mission_result_path': None,
     'global_path_status': 'WAITING', 'planner_state': 'WAITING',
     'recommended_speed': None, 'local_state': 'WAITING',
     'steering_deg': None, 'clearance': None,
@@ -147,8 +149,8 @@ HTML = r'''<!doctype html>
 </style></head><body>
 <header><div><h1>SIH26126 AUTONOMOUS UGV</h1><div class="sub">LIVE OPERATIONS · ODOMETRY-ASSISTED ONLINE MAPPING</div></div><div class="header-right"><span class="pill">DOMAIN <b id="domain">—</b></span><span class="pill">SIM <b id="simtime">—</b></span><span class="pill">RUNTIME <b id="runtime">—</b></span><span class="pill status" id="system">OFFLINE</span></div></header>
 <main>
-<section class="panel map-panel"><h2>Live occupancy map <span class="tag" id="mapstate">MAP: INITIALIZING</span></h2><div class="map-wrap"><canvas id="map"></canvas></div><div class="legend"><span><i class="swatch" style="background:#17232d"></i>UNKNOWN</span><span><i class="swatch" style="background:#dce8da"></i>FREE</span><span><i class="swatch" style="background:#e65d52"></i>OCCUPIED</span><span><i class="swatch" style="background:#42d7e8"></i>GLOBAL PATH</span><span><i class="swatch" style="background:#ffd166"></i>LOCAL PATH</span><span><i class="swatch" style="background:#3ee8c1"></i>FRONTIER</span><span>▲ ROBOT</span></div><div class="row"><span>Grid</span><b id="mapdims">—</b></div><div class="row"><span>Known / free / occupied / unknown</span><b id="cellcounts">—</b></div><div class="row"><span>Known-space</span><b id="knownpct">—</b></div></section>
-<section class="panel side-panel"><h2>Live autonomy status</h2><div class="metric"><div class="label">Current mode</div><div class="value" id="mode">MAPPING</div></div><div class="metrics" style="margin-top:10px"><div class="metric"><div class="label">Active frontier distance</div><div class="value" id="frontierdist">—</div></div><div class="metric"><div class="label">Frontier candidates</div><div class="value" id="frontiercount">0</div></div><div class="metric"><div class="label">Global path</div><div class="value" id="pathstatus">WAITING</div></div><div class="metric"><div class="label">Explored</div><div class="value" id="explored">0%</div></div></div><div class="row"><span>Target</span><b id="target">—</b></div><div class="row"><span>Planner state</span><b id="plannerstate">WAITING</b></div><div class="row"><span>Localization source</span><b id="locsource">—</b></div><div class="row"><span>Mapping mode</span><b>ODOMETRY-ASSISTED</b></div></section>
+<section class="panel map-panel"><h2>Live occupancy map <span class="tag" id="mapstate">MAP: INITIALIZING</span></h2><div class="map-wrap"><canvas id="map"></canvas></div><div class="legend"><span><i class="swatch" style="background:#17232d"></i>UNKNOWN</span><span><i class="swatch" style="background:#dce8da"></i>FREE</span><span><i class="swatch" style="background:#e65d52"></i>OCCUPIED</span><span><i class="swatch" style="background:#42d7e8"></i>GLOBAL PATH</span><span><i class="swatch" style="background:#ffd166"></i>LOCAL PATH</span><span><i class="swatch" style="background:#3ee8c1"></i>FRONTIER</span><span>▲ ROBOT</span></div><div class="row"><span>Grid</span><b id="mapdims">—</b></div><div class="row"><span>Known / free / occupied / unknown</span><b id="cellcounts">—</b></div><div class="row"><span>Known map cells (% of grid)</span><b id="knownpct">—</b></div></section>
+<section class="panel side-panel"><h2>Live autonomy status</h2><div class="metric"><div class="label">Mission state</div><div class="value" id="mission">INITIALIZING</div></div><div class="metric"><div class="label">Exploration mode</div><div class="value" id="mode">MAPPING</div></div><div class="metrics" style="margin-top:10px"><div class="metric"><div class="label">Active frontier distance</div><div class="value" id="frontierdist">—</div></div><div class="metric"><div class="label">Frontier candidates</div><div class="value" id="frontiercount">0</div></div><div class="metric"><div class="label">Global path</div><div class="value" id="pathstatus">WAITING</div></div><div class="metric"><div class="label">Explored</div><div class="value" id="explored">0%</div></div></div><div class="row"><span>Target</span><b id="target">—</b></div><div class="row"><span>Planner state</span><b id="plannerstate">WAITING</b></div><div class="row"><span>Localization source</span><b id="locsource">—</b></div><div class="row"><span>Home / known area</span><b id="homearea">—</b></div><div class="row"><span>Mission metrics</span><b id="missionmetrics">Unavailable</b></div><div class="row"><span>Mapping mode</span><b>ODOMETRY-ASSISTED</b></div></section>
 <section class="panel half"><h2>Live RGB sensor</h2><div class="stream"><img src="/camera.mjpg" alt="Live RGB sensor"></div><div class="row"><span>Resolution / FPS / age</span><b id="camerainfo">—</b></div></section>
 <section class="panel half"><h2>Derived traversability</h2><div class="stream"><img src="/trav.mjpg" alt="Live traversability score map"></div><div class="row"><span>Mean score</span><b id="travscore">—</b></div><div class="row"><span>Terrain class / confidence</span><b id="terrain">—</b></div><div class="row"><span>Slope / roughness / geometry confidence</span><b id="geometry">—</b></div></section>
 <section class="panel third"><h2>Depth and obstacle observations</h2><div class="row"><span>Nearest height-filtered return</span><b id="nearest">—</b></div><div class="row"><span>Obstacle samples / valid sampled points</span><b id="depthcount">—</b></div><div class="row"><span>Cloud rate / sensor age</span><b id="cloudrate">—</b></div><div class="row"><span>XYZ range</span><b id="xyzrange">—</b></div><div class="sub" id="cloudframe">Sensor frame —</div></section>
@@ -157,14 +159,16 @@ HTML = r'''<!doctype html>
 <section class="panel half"><h2>Safety supervisor</h2><div id="safetybanner" class="safety-banner">SAFETY: UNKNOWN</div><div class="row"><span>Reason</span><b id="safetyreason">WAITING</b></div><div class="row"><span>Authoritative command (linear.x / angular.z)</span><b id="command">—</b></div><div class="row"><span>Command age</span><b id="commandage">—</b></div></section>
 <section class="panel half"><h2>Subsystem health</h2><div id="health" class="health"></div></section>
 <section class="panel half"><h2>Live event log</h2><div id="events" class="eventlist"></div></section>
+<section class="panel wide"><h2>Mission measurements</h2><div class="row"><span>Elapsed · traveled · home error</span><b id="missiondetail-position">—</b></div><div class="row"><span>Replans · safety stops · blocked goals</span><b id="missiondetail-events">—</b></div><div class="row"><span>Minimum clearance · obstacle observations · collision</span><b id="missiondetail-obstacles">—</b></div><div class="row"><span>Known/free/occupied/unknown cells · result artifact</span><b id="missiondetail-map">—</b></div></section>
 <section class="panel half"><h2>ROS topic status</h2><div class="topic-wrap"><table><thead><tr><th>Topic</th><th>Type</th><th>Rate</th><th>Age</th><th>Status</th></tr></thead><tbody id="topics"></tbody></table></div></section>
 </main>
 <script>
 let trail=[];let lastEventCount=0;
 function fmt(v,n=2){return v===null||v===undefined||!Number.isFinite(v)?'—':Number(v).toFixed(n)}
 function age(v){return v===null||v===undefined?'—':fmt(v,1)+' s'}
-function drawMap(s){const c=document.getElementById('map'),ctx=c.getContext('2d'),m=s.map;if(!m||!m.data){ctx.clearRect(0,0,c.width,c.height);return}const W=m.width,H=m.height;if(c.width!==c.clientWidth*devicePixelRatio||c.height!==c.clientHeight*devicePixelRatio){c.width=c.clientWidth*devicePixelRatio;c.height=c.clientHeight*devicePixelRatio}const raw=atob(m.data),cells=new Int8Array(raw.length);for(let i=0;i<raw.length;i++)cells[i]=raw.charCodeAt(i)>127?raw.charCodeAt(i)-256:raw.charCodeAt(i);const off=document.createElement('canvas');off.width=W;off.height=H;const ox=off.getContext('2d'),im=ox.createImageData(W,H);for(let r=0;r<H;r++)for(let x=0;x<W;x++){let v=cells[r*W+x],j=((H-1-r)*W+x)*4;if(v<0){im.data[j]=23;im.data[j+1]=35;im.data[j+2]=45}else if(v>=50){im.data[j]=230;im.data[j+1]=93;im.data[j+2]=82}else{im.data[j]=220;im.data[j+1]=232;im.data[j+2]=218}im.data[j+3]=255}ox.putImageData(im,0,0);ctx.fillStyle='#0b1118';ctx.fillRect(0,0,c.width,c.height);ctx.imageSmoothingEnabled=false;ctx.drawImage(off,0,0,c.width,c.height);const sx=c.width/W,sy=c.height/H;const pix=p=>[(p.x-m.origin_x)/m.resolution*sx,c.height-(p.y-m.origin_y)/m.resolution*sy];function path(points,color,width){if(!points||points.length<2)return;ctx.strokeStyle=color;ctx.lineWidth=width*devicePixelRatio;ctx.beginPath();points.forEach((p,i)=>{let q=pix(p);if(i)ctx.lineTo(q[0],q[1]);else ctx.moveTo(q[0],q[1])});ctx.stroke()}path(m.global_path,'#42d7e8',2);path(m.local_path,'#ffd166',3);ctx.fillStyle='#3ee8c1';for(const p of m.frontiers||[]){let q=pix(p);ctx.fillRect(q[0]-2,q[1]-2,4,4)}if(m.goal){let q=pix(m.goal);ctx.fillStyle='#3ee8c1';ctx.beginPath();ctx.arc(q[0],q[1],6*devicePixelRatio,0,Math.PI*2);ctx.fill()}if(s.pose){trail.push({x:s.pose.x,y:s.pose.y});if(trail.length>1500)trail.shift();path(trail,'#7b8dff',1.5)}if(s.pose){let q=pix(s.pose),scale=devicePixelRatio*8;ctx.save();ctx.translate(q[0],q[1]);ctx.rotate(-s.pose.yaw);ctx.fillStyle='#ffffff';ctx.beginPath();ctx.moveTo(scale,0);ctx.lineTo(-scale*.7,-scale*.58);ctx.lineTo(-scale*.7,scale*.58);ctx.closePath();ctx.fill();ctx.restore()}}
-async function update(){try{let r=await fetch('/api/status',{cache:'no-store'}),s=await r.json();document.getElementById('system').textContent=s.system;document.getElementById('system').className='pill status '+(s.system==='ONLINE'?'good':s.system==='DEGRADED'?'warn':'bad');document.getElementById('domain').textContent=s.domain;document.getElementById('runtime').textContent=fmt(s.runtime,0)+' s';document.getElementById('simtime').textContent=s.sim_time===null?'—':fmt(s.sim_time,1)+' s';document.getElementById('mapstate').textContent='MAP: '+s.mapping.state;document.getElementById('mode').textContent=s.exploration.state;document.getElementById('frontierdist').textContent=s.exploration.distance===null?'—':fmt(s.exploration.distance,2)+' m';document.getElementById('frontiercount').textContent=s.exploration.frontier_count;document.getElementById('pathstatus').textContent=s.planner.global_path_status;document.getElementById('explored').textContent=fmt(s.map.known_percent,1)+'%';document.getElementById('target').textContent=s.exploration.goal?fmt(s.exploration.goal.x,2)+', '+fmt(s.exploration.goal.y,2):'—';document.getElementById('plannerstate').textContent=s.planner.state;document.getElementById('locsource').textContent=s.localization.source||'WAITING';document.getElementById('camerainfo').textContent=s.camera.resolution+' · '+fmt(s.camera.fps,1)+' FPS · '+age(s.camera.age);document.getElementById('travscore').textContent=fmt(s.traversability.mean_score,3);document.getElementById('terrain').textContent=(s.terrain.class||'—')+' · conf '+fmt(s.terrain.class_confidence,2);document.getElementById('geometry').textContent=fmt(s.terrain.slope_deg,1)+'° · '+fmt(s.terrain.roughness_m,3)+' m · '+fmt(s.terrain.geometry_confidence,2);document.getElementById('nearest').textContent=s.depth.nearest===null?'—':fmt(s.depth.nearest,2)+' m';document.getElementById('depthcount').textContent=s.depth.obstacle_samples+' / '+s.depth.finite+' ('+fmt(s.depth.valid_ratio*100,1)+'%)';document.getElementById('cloudrate').textContent=fmt(s.depth.rate_hz,1)+' Hz · '+age(s.depth.age);document.getElementById('xyzrange').textContent=s.depth.ranges;document.getElementById('cloudframe').textContent='Frame: '+(s.depth.frame||'—');document.getElementById('x').textContent=fmt(s.pose?.x,2)+' m';document.getElementById('y').textContent=fmt(s.pose?.y,2)+' m';document.getElementById('yaw').textContent=fmt(s.pose?.yaw,2)+' rad';document.getElementById('vx').textContent=fmt(s.pose?.vx,2)+' m/s';document.getElementById('wzage').textContent=fmt(s.pose?.wz,2)+' rad/s · '+age(s.pose?.age);document.getElementById('pose-source').textContent=s.localization.source||'—';document.getElementById('recommendedspeed').textContent=s.planner.recommended_speed===null?'—':fmt(s.planner.recommended_speed,3)+' m/s';document.getElementById('localstate').textContent=s.planner.local_state;document.getElementById('steering').textContent=fmt(s.planner.steering_deg,1)+'°';document.getElementById('obstacle').textContent=fmt(s.planner.clearance,2)+' m · '+fmt(s.planner.obstacle_score,2);document.getElementById('plannerdistance').textContent=s.exploration.distance===null?'—':fmt(s.exploration.distance,2)+' m';let sb=document.getElementById('safetybanner');sb.textContent='SAFETY: '+s.safety.state;sb.className='safety-banner '+(s.safety.state==='SAFE'?'':'stopped');document.getElementById('safetyreason').textContent=s.safety.reason;document.getElementById('command').textContent=fmt(s.command.vx,3)+' m/s · '+fmt(s.command.wz,3)+' rad/s';document.getElementById('commandage').textContent=age(s.command.age);document.getElementById('mapdims').textContent=s.map.width+'×'+s.map.height+' @ '+fmt(s.map.resolution,2)+' m';document.getElementById('cellcounts').textContent=s.map.known+' known · '+s.map.free+' free · '+s.map.occupied+' occupied · '+s.map.unknown+' unknown';document.getElementById('knownpct').textContent=fmt(s.map.known_percent,2)+'%';document.getElementById('health').innerHTML=Object.entries(s.health).map(([k,v])=>'<div class="health-item"><span class="label">'+k+'</span><b class="'+(v==='LIVE'?'good':(v==='STALE'||v==='DEGRADED')?'warn':'bad')+'">'+v+'</b></div>').join('');document.getElementById('events').innerHTML=s.events.map(e=>'<div class="event"><time>'+e.time+'</time>'+e.message+'</div>').join('')||'<div class="small">No runtime events received yet.</div>';document.getElementById('topics').innerHTML=s.topics.map(t=>'<tr><td>'+t.name+'</td><td>'+t.type+'</td><td>'+fmt(t.rate,1)+' Hz</td><td>'+age(t.age)+'</td><td class="'+(t.status==='LIVE'?'good':t.status==='STALE'?'warn':'bad')+'">'+t.status+'</td></tr>').join('');drawMap(s)}catch(e){document.getElementById('system').textContent='DASHBOARD API UNAVAILABLE'}}setInterval(update,1000);update();
+function drawMap(s){const c=document.getElementById('map'),ctx=c.getContext('2d'),m=s.map;if(!m||!m.data){ctx.clearRect(0,0,c.width,c.height);return}const W=m.width,H=m.height;if(c.width!==c.clientWidth*devicePixelRatio||c.height!==c.clientHeight*devicePixelRatio){c.width=c.clientWidth*devicePixelRatio;c.height=c.clientHeight*devicePixelRatio}const raw=atob(m.data),cells=new Int8Array(raw.length);for(let i=0;i<raw.length;i++)cells[i]=raw.charCodeAt(i)>127?raw.charCodeAt(i)-256:raw.charCodeAt(i);const off=document.createElement('canvas');off.width=W;off.height=H;const ox=off.getContext('2d'),im=ox.createImageData(W,H);for(let r=0;r<H;r++)for(let x=0;x<W;x++){let v=cells[r*W+x],j=((H-1-r)*W+x)*4;if(v<0){im.data[j]=23;im.data[j+1]=35;im.data[j+2]=45}else if(v>=50){im.data[j]=230;im.data[j+1]=93;im.data[j+2]=82}else{im.data[j]=220;im.data[j+1]=232;im.data[j+2]=218}im.data[j+3]=255}ox.putImageData(im,0,0);ctx.fillStyle='#0b1118';ctx.fillRect(0,0,c.width,c.height);ctx.imageSmoothingEnabled=false;ctx.drawImage(off,0,0,c.width,c.height);const sx=c.width/W,sy=c.height/H;const pix=p=>[(p.x-m.origin_x)/m.resolution*sx,c.height-(p.y-m.origin_y)/m.resolution*sy];function path(points,color,width){if(!points||points.length<2)return;ctx.strokeStyle=color;ctx.lineWidth=width*devicePixelRatio;ctx.beginPath();points.forEach((p,i)=>{let q=pix(p);if(i)ctx.lineTo(q[0],q[1]);else ctx.moveTo(q[0],q[1])});ctx.stroke()}path(m.global_path,'#42d7e8',2);path(m.local_path,'#ffd166',3);ctx.fillStyle='#3ee8c1';for(const p of m.frontiers||[]){let q=pix(p);ctx.fillRect(q[0]-2,q[1]-2,4,4)}if(m.goal){let q=pix(m.goal);ctx.fillStyle='#3ee8c1';ctx.beginPath();ctx.arc(q[0],q[1],6*devicePixelRatio,0,Math.PI*2);ctx.fill()}if(s.pose){trail.push({x:s.pose.x,y:s.pose.y});if(trail.length>1500)trail.shift();path(trail,'#7b8dff',1.5)}if(m.home){let h=pix(m.home);ctx.strokeStyle='#ff78d1';ctx.lineWidth=2*devicePixelRatio;ctx.beginPath();ctx.arc(h[0],h[1],8*devicePixelRatio,0,Math.PI*2);ctx.stroke();ctx.fillStyle='#ff78d1';ctx.fillText('HOME',h[0]+9,h[1]-8)}if(s.pose){let q=pix(s.pose),scale=devicePixelRatio*8;ctx.save();ctx.translate(q[0],q[1]);ctx.rotate(-s.pose.yaw);ctx.fillStyle='#ffffff';ctx.beginPath();ctx.moveTo(scale,0);ctx.lineTo(-scale*.7,-scale*.58);ctx.lineTo(-scale*.7,scale*.58);ctx.closePath();ctx.fill();ctx.restore()}}
+async function update(){try{let r=await fetch('/api/status',{cache:'no-store'}),s=await r.json();document.getElementById('system').textContent=s.system;document.getElementById('system').className='pill status '+(s.system==='ONLINE'?'good':s.system==='DEGRADED'?'warn':'bad');document.getElementById('domain').textContent=s.domain;document.getElementById('runtime').textContent=fmt(s.runtime,0)+' s';document.getElementById('simtime').textContent=s.sim_time===null?'—':fmt(s.sim_time,1)+' s';document.getElementById('mapstate').textContent='MAP: '+s.mapping.state;document.getElementById('mission').textContent=s.mission.state+(s.mission.reason?' · '+s.mission.reason:'');document.getElementById('mode').textContent=s.exploration.state;document.getElementById('frontierdist').textContent=s.exploration.distance===null?'—':fmt(s.exploration.distance,2)+' m';document.getElementById('frontiercount').textContent=s.exploration.frontier_count;document.getElementById('pathstatus').textContent=s.planner.global_path_status;document.getElementById('explored').textContent=fmt(s.map.known_percent,1)+'%';document.getElementById('target').textContent=s.exploration.goal?fmt(s.exploration.goal.x,2)+', '+fmt(s.exploration.goal.y,2):'—';document.getElementById('plannerstate').textContent=s.planner.state;document.getElementById('locsource').textContent=s.localization.source||'WAITING';document.getElementById('homearea').textContent=s.mission.home?fmt(s.mission.home.x,1)+', '+fmt(s.mission.home.y,1)+' · '+fmt(s.mission.known_area_m2,1)+' m²':'Waiting for home pose';let mm=s.mission.metrics;document.getElementById('missionmetrics').textContent=mm?mm.mission_result+' · '+fmt(mm.distance_travelled_m,1)+' m traveled · '+fmt(mm.frontiers_completed,0)+' frontiers':'Unavailable';document.getElementById('camerainfo').textContent=s.camera.resolution+' · '+fmt(s.camera.fps,1)+' FPS · '+age(s.camera.age);document.getElementById('travscore').textContent=fmt(s.traversability.mean_score,3);document.getElementById('terrain').textContent=(s.terrain.class||'—')+' · conf '+fmt(s.terrain.class_confidence,2);document.getElementById('geometry').textContent=fmt(s.terrain.slope_deg,1)+'° · '+fmt(s.terrain.roughness_m,3)+' m · '+fmt(s.terrain.geometry_confidence,2);document.getElementById('nearest').textContent=s.depth.nearest===null?'—':fmt(s.depth.nearest,2)+' m';document.getElementById('depthcount').textContent=s.depth.obstacle_samples+' / '+s.depth.finite+' ('+fmt(s.depth.valid_ratio*100,1)+'%)';document.getElementById('cloudrate').textContent=fmt(s.depth.rate_hz,1)+' Hz · '+age(s.depth.age);document.getElementById('xyzrange').textContent=s.depth.ranges;document.getElementById('cloudframe').textContent='Frame: '+(s.depth.frame||'—');document.getElementById('x').textContent=fmt(s.pose?.x,2)+' m';document.getElementById('y').textContent=fmt(s.pose?.y,2)+' m';document.getElementById('yaw').textContent=fmt(s.pose?.yaw,2)+' rad';document.getElementById('vx').textContent=fmt(s.pose?.vx,2)+' m/s';document.getElementById('wzage').textContent=fmt(s.pose?.wz,2)+' rad/s · '+age(s.pose?.age);document.getElementById('pose-source').textContent=s.localization.source||'—';document.getElementById('recommendedspeed').textContent=s.planner.recommended_speed===null?'—':fmt(s.planner.recommended_speed,3)+' m/s';document.getElementById('localstate').textContent=s.planner.local_state;document.getElementById('steering').textContent=fmt(s.planner.steering_deg,1)+'°';document.getElementById('obstacle').textContent=fmt(s.planner.clearance,2)+' m · '+fmt(s.planner.obstacle_score,2);document.getElementById('plannerdistance').textContent=s.exploration.distance===null?'—':fmt(s.exploration.distance,2)+' m';let sb=document.getElementById('safetybanner');sb.textContent='SAFETY: '+s.safety.state;sb.className='safety-banner '+(s.safety.state==='SAFE'?'':'stopped');document.getElementById('safetyreason').textContent=s.safety.reason;document.getElementById('command').textContent=fmt(s.command.vx,3)+' m/s · '+fmt(s.command.wz,3)+' rad/s';document.getElementById('commandage').textContent=age(s.command.age);document.getElementById('mapdims').textContent=s.map.width+'×'+s.map.height+' @ '+fmt(s.map.resolution,2)+' m';document.getElementById('cellcounts').textContent=s.map.known+' known · '+s.map.free+' free · '+s.map.occupied+' occupied · '+s.map.unknown+' unknown';document.getElementById('knownpct').textContent=fmt(s.map.known_percent,2)+'%';document.getElementById('health').innerHTML=Object.entries(s.health).map(([k,v])=>'<div class="health-item"><span class="label">'+k+'</span><b class="'+(v==='LIVE'?'good':(v==='STALE'||v==='DEGRADED')?'warn':'bad')+'">'+v+'</b></div>').join('');document.getElementById('events').innerHTML=s.events.map(e=>'<div class="event"><time>'+e.time+'</time>'+e.message+'</div>').join('')||'<div class="small">No runtime events received yet.</div>';document.getElementById('topics').innerHTML=s.topics.map(t=>'<tr><td>'+t.name+'</td><td>'+t.type+'</td><td>'+fmt(t.rate,1)+' Hz</td><td>'+age(t.age)+'</td><td class="'+(t.status==='LIVE'?'good':t.status==='STALE'?'warn':'bad')+'">'+t.status+'</td></tr>').join('');drawMap(s)}catch(e){document.getElementById('system').textContent='DASHBOARD API UNAVAILABLE'}}setInterval(update,1000);update();
+async function updateMissionDetail(){try{let r=await fetch('/api/status',{cache:'no-store'}),s=await r.json(),m=s.mission.metrics;if(!m)return;document.getElementById('missiondetail-position').textContent=fmt(m.mission_duration_s,1)+' s · '+fmt(m.distance_travelled_m,2)+' m · '+fmt(m.final_position_error_m,2)+' m';document.getElementById('missiondetail-events').textContent=fmt(m.number_of_replans,0)+' · '+fmt(m.number_of_safety_stops,0)+' · '+fmt(m.blocked_goals,0);document.getElementById('missiondetail-obstacles').textContent=fmt(m.minimum_obstacle_clearance_m,2)+' m · '+fmt(m.obstacle_observations,0)+' · '+(m.collision_detected===null?'unknown':m.collision_detected?'YES':'NO');document.getElementById('missiondetail-map').textContent=[m.known_cells,m.free_cells,m.occupied_cells,m.unknown_cells].map(v=>v===null?'?':v).join(' / ')+' · '+(s.mission.result_path||'pending')}catch(e){}}setInterval(updateMissionDetail,1000);updateMissionDetail();
 </script></body></html>'''
 
 
@@ -199,11 +203,18 @@ class DashboardNode(Node):
         self.create_subscription(OccupancyGrid, '/map', self.map_callback, self.map_qos)
         self.create_subscription(String, '/mapping/state', self.mapping_callback, 10)
         self.create_subscription(String, '/exploration/state', self.exploration_callback, 10)
+        self.create_subscription(String, '/mission/state', self.mission_callback, 10)
+        self.create_subscription(PoseStamped, '/mission/home_pose', self.home_callback, 10)
+        self.create_subscription(Float32, '/mission/known_area_m2', self.known_area_callback, 10)
+        self.create_subscription(String, '/mission/reason', self.mission_reason_callback, 10)
+        self.create_subscription(String, '/mission/metrics', self.mission_metrics_callback, 10)
+        self.create_subscription(String, '/mission/result_path', self.mission_result_path_callback, 10)
         self.create_subscription(Int32, '/exploration/frontier_count', self.frontier_count_callback, 10)
         self.create_subscription(MarkerArray, '/exploration/frontiers', self.frontiers_callback, 5)
         self.create_subscription(Float32, '/exploration/explored_percentage', self.explored_callback, 10)
         self.create_subscription(Float32, '/exploration/distance_to_frontier', self.frontier_distance_callback, 10)
         self.create_subscription(PointStamped, '/exploration/goal', self.goal_callback, 10)
+        self.create_subscription(PointStamped, '/mission/goal', self.mission_goal_callback, 10)
         self.create_subscription(Path, '/planner/global_path', self.global_path_callback, 10)
         self.create_subscription(Path, '/planner/local_path', self.local_path_callback, 10)
         self.create_subscription(String, '/planner/global_path_status', self.path_status_callback, 10)
@@ -363,7 +374,9 @@ class DashboardNode(Node):
             'origin_x': float(msg.info.origin.position.x), 'origin_y': float(msg.info.origin.position.y),
             'frame': msg.header.frame_id, 'data': base64.b64encode(data.tobytes()).decode('ascii'),
             'known': known_count, 'free': free, 'occupied': occupied, 'unknown': unknown,
-            'known_percent': 100.0 * known_count / max(1, data.size), 'bounds': bounds,
+            'known_percent': 100.0 * known_count / max(1, data.size),
+            'known_area_m2': known_count * float(msg.info.resolution) ** 2,
+            'bounds': bounds,
         }
         with LOCK:
             previous = STATE['map']
@@ -390,6 +403,55 @@ class DashboardNode(Node):
             self.mark('/exploration/state')
         if changed:
             event(f'Exploration mode: {msg.data}')
+
+    def mission_callback(self, msg):
+        with LOCK:
+            changed = STATE['mission_state'] != msg.data
+            STATE['mission_state'] = msg.data
+            self.mark('/mission/state')
+        if changed:
+            event(f'Mission state: {msg.data}')
+
+    def home_callback(self, msg):
+        q = msg.pose.orientation
+        with LOCK:
+            STATE['home'] = {
+                'x': float(msg.pose.position.x), 'y': float(msg.pose.position.y),
+                'yaw': math.atan2(2 * (q.w * q.z + q.x * q.y),
+                                  1 - 2 * (q.y * q.y + q.z * q.z)),
+            }
+            self.mark('/mission/home_pose')
+            first = not STATE['home_logged']
+            STATE['home_logged'] = True
+        if first:
+            event('Startup home pose captured from localization')
+
+    def known_area_callback(self, msg):
+        with LOCK:
+            STATE['known_area_m2'] = float(msg.data)
+            self.mark('/mission/known_area_m2')
+
+    def mission_reason_callback(self, msg):
+        with LOCK:
+            changed = STATE['mission_reason'] != msg.data
+            STATE['mission_reason'] = msg.data
+            self.mark('/mission/reason')
+        if changed and msg.data:
+            event(f'Mission issue: {msg.data}')
+
+    def mission_metrics_callback(self, msg):
+        try:
+            metrics = json.loads(msg.data)
+        except (TypeError, json.JSONDecodeError):
+            return
+        with LOCK:
+            STATE['mission_metrics'] = metrics
+            self.mark('/mission/metrics')
+
+    def mission_result_path_callback(self, msg):
+        with LOCK:
+            STATE['mission_result_path'] = msg.data
+            self.mark('/mission/result_path')
 
     def frontier_count_callback(self, msg):
         with LOCK:
@@ -428,6 +490,15 @@ class DashboardNode(Node):
             self.mark('/exploration/goal')
         if old is None or math.hypot(old['x'] - p['x'], old['y'] - p['y']) > 0.4:
             event(f"New map frontier target: ({p['x']:.1f}, {p['y']:.1f})")
+
+    def mission_goal_callback(self, msg):
+        p = {'x': float(msg.point.x), 'y': float(msg.point.y)}
+        with LOCK:
+            previous = STATE['goal']
+            STATE['goal'] = p
+            self.mark('/mission/goal')
+        if previous is None or math.hypot(previous['x'] - p['x'], previous['y'] - p['y']) > 0.4:
+            event(f"Mission navigation target updated: ({p['x']:.1f}, {p['y']:.1f})")
 
     @staticmethod
     def path_points(msg):
@@ -592,7 +663,7 @@ def status_payload():
         m = state['map'] or {'width': 0, 'height': 0, 'resolution': 0.0,
                              'origin_x': 0.0, 'origin_y': 0.0, 'data': '',
                              'known': 0, 'free': 0, 'occupied': 0, 'unknown': 0,
-                             'known_percent': 0.0, 'bounds': None}
+                             'known_percent': 0.0, 'known_area_m2': 0.0, 'bounds': None}
         d = state['cloud_stats'] or {}
         ranges = '—'
         if d.get('x_range'):
@@ -636,7 +707,12 @@ def status_payload():
             'depth': depth, 'pose': pose,
             'localization': {'source': state['localization_source']},
             'mapping': {'state': state['mapping_state'], 'age': map_age},
-            'map': {**m, 'global_path': state['global_path'], 'local_path': state['local_path'],
+            'mission': {'state': state['mission_state'], 'home': state['home'],
+                        'known_area_m2': state['known_area_m2'],
+                        'reason': state['mission_reason'],
+                        'metrics': state['mission_metrics'],
+                        'result_path': state['mission_result_path']},
+            'map': {**m, 'home': state['home'], 'global_path': state['global_path'], 'local_path': state['local_path'],
                     'frontiers': state.get('frontiers', []), 'goal': state['goal']},
             'exploration': {'state': state['exploration_state'], 'frontier_count': state['frontier_count'],
                             'explored_percent': state['explored_percent'], 'distance': state['frontier_distance'],

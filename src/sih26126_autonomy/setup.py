@@ -25,6 +25,8 @@ setup(
             'sih26126_autonomy.online_mapping:mapper_main',
             'frontier_explorer = '
             'sih26126_autonomy.frontier_explorer:main',
+            'mission_manager = '
+            'sih26126_autonomy.mission_manager:main',
         ],
     },
 )
