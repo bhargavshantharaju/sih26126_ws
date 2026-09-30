@@ -103,7 +103,7 @@ class MissionManager(Node):
         self.declare_parameter('stationary_linear_mps', 0.04)
         self.declare_parameter('stationary_angular_rps', 0.06)
         self.declare_parameter('stationary_dwell_sec', 2.0)
-        self.declare_parameter('mission_timeout_sec', 600.0)
+        self.declare_parameter('mission_timeout_sec', 1800.0)
         self.declare_parameter('result_directory', 'artifacts/mission_results')
         self.declare_parameter('mission_name', 'autonomous_outdoor_mission')
         self.declare_parameter('max_pose_speed_mps', 2.0)

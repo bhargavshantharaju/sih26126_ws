@@ -44,11 +44,11 @@ colcon test
 colcon test-result --verbose
 ```
 
-## Forest demo
+## Showcase terrain demo
 
-The forest uses local static SDF primitives: tree trunks/foliage, rocks, and fallen logs. It has no supplied occupancy map or hidden route.
+The showcase uses a locally generated grayscale heightmap plus local SDF tree, rock, and fallen-log geometry. A recessed basin has visual-only water; the central valley corridor remains drivable. It has no supplied occupancy map or hidden route. The full-stack launch takes an exclusive lock so a second launch cannot create competing Gazebo clocks, publishers, and mission managers.
 
-Terminal 1 — Gazebo GUI and full autonomy stack:
+Launch Gazebo, autonomy, and the read-only dashboard together:
 
 ```bash
 cd ~/sih26126_ws
@@ -56,20 +56,12 @@ source /opt/ros/jazzy/setup.bash
 source install/setup.bash
 ros2 launch sih26126_bringup full_stack.launch.py \
   gui:=true \
-  start_dashboard:=false \
-  world:=$(ros2 pkg prefix sih26126_sim)/share/sih26126_sim/worlds/forest_test.sdf
+  start_dashboard:=true \
+  dashboard_port:=8101 \
+  world:=$(ros2 pkg prefix sih26126_sim)/share/sih26126_sim/worlds/showcase_terrain.sdf
 ```
 
-Terminal 2 — live operations dashboard:
-
-```bash
-cd ~/sih26126_ws
-source /opt/ros/jazzy/setup.bash
-source install/setup.bash
-ros2 run sih26126_dashboard dashboard
-```
-
-Open the localhost URL printed by the dashboard. If the requested port is occupied, the dashboard tries subsequent ports through 8090.
+Open the localhost URL printed by the dashboard; the requested port can advance by up to ten if occupied.
 
 ## Key live topics
 

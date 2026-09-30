@@ -103,6 +103,12 @@ def cloud_stats(msg):
         & (finite[:, 2] > -0.96) & (finite[:, 2] < 2.5)
     )
     obstacle_points = finite[obstacle]
+    projected = finite[
+        (finite[:, 0] >= 0.0) & (finite[:, 0] <= 18.0)
+        & (np.abs(finite[:, 1]) <= 7.0)
+    ]
+    if len(projected) > 1200:
+        projected = projected[::int(math.ceil(len(projected) / 1200))]
     nearest = (
         float(np.min(np.hypot(obstacle_points[:, 0], obstacle_points[:, 1])))
         if len(obstacle_points) else None
@@ -114,6 +120,7 @@ def cloud_stats(msg):
         'y_range': [float(ranges[0][1]), float(ranges[1][1])],
         'z_range': [float(ranges[0][2]), float(ranges[1][2])],
         'frame': msg.header.frame_id,
+        'points': projected[:, :3].astype(float).tolist(),
     }
 
 
@@ -128,6 +135,7 @@ STATE = {
     'localization_last': None, 'localization_source': None, 'localization_pose': None,
     'imu_last': None, 'imu': {'ax': 0.0, 'ay': 0.0, 'az': 0.0, 'gz': 0.0},
     'cmd_last': None, 'cmd': {'vx': 0.0, 'wz': 0.0},
+    'local_cmd_last': None, 'local_cmd': {'vx': 0.0, 'wz': 0.0},
     'cloud_last': None, 'cloud_stats': None, 'clock_sec': None,
     'map_last': None, 'map': None, 'mapping_state': 'INITIALIZING',
     'exploration_state': 'MAPPING', 'frontier_count': 0, 'explored_percent': 0.0,
@@ -153,9 +161,9 @@ HTML = r'''<!doctype html>
 <section class="panel side-panel"><h2>Live autonomy status</h2><div class="metric"><div class="label">Mission state</div><div class="value" id="mission">INITIALIZING</div></div><div class="metric"><div class="label">Exploration mode</div><div class="value" id="mode">MAPPING</div></div><div class="metrics" style="margin-top:10px"><div class="metric"><div class="label">Active frontier distance</div><div class="value" id="frontierdist">—</div></div><div class="metric"><div class="label">Frontier candidates</div><div class="value" id="frontiercount">0</div></div><div class="metric"><div class="label">Global path</div><div class="value" id="pathstatus">WAITING</div></div><div class="metric"><div class="label">Explored</div><div class="value" id="explored">0%</div></div></div><div class="row"><span>Target</span><b id="target">—</b></div><div class="row"><span>Planner state</span><b id="plannerstate">WAITING</b></div><div class="row"><span>Localization source</span><b id="locsource">—</b></div><div class="row"><span>Home / known area</span><b id="homearea">—</b></div><div class="row"><span>Mission metrics</span><b id="missionmetrics">Unavailable</b></div><div class="row"><span>Mapping mode</span><b>ODOMETRY-ASSISTED</b></div></section>
 <section class="panel half"><h2>Live RGB sensor</h2><div class="stream"><img src="/camera.mjpg" alt="Live RGB sensor"></div><div class="row"><span>Resolution / FPS / age</span><b id="camerainfo">—</b></div></section>
 <section class="panel half"><h2>Derived traversability</h2><div class="stream"><img src="/trav.mjpg" alt="Live traversability score map"></div><div class="row"><span>Mean score</span><b id="travscore">—</b></div><div class="row"><span>Terrain class / confidence</span><b id="terrain">—</b></div><div class="row"><span>Slope / roughness / geometry confidence</span><b id="geometry">—</b></div></section>
-<section class="panel third"><h2>Depth and obstacle observations</h2><div class="row"><span>Nearest height-filtered return</span><b id="nearest">—</b></div><div class="row"><span>Obstacle samples / valid sampled points</span><b id="depthcount">—</b></div><div class="row"><span>Cloud rate / sensor age</span><b id="cloudrate">—</b></div><div class="row"><span>XYZ range</span><b id="xyzrange">—</b></div><div class="sub" id="cloudframe">Sensor frame —</div></section>
+<section class="panel third"><h2>Live depth point cloud · forward projection</h2><div class="map-wrap" style="height:260px;min-height:220px"><canvas id="pointcloud"></canvas></div><div class="row"><span>Nearest height-filtered return</span><b id="nearest">—</b></div><div class="row"><span>Obstacle samples / valid sampled points</span><b id="depthcount">—</b></div><div class="row"><span>Cloud rate / sensor age</span><b id="cloudrate">—</b></div><div class="row"><span>XYZ range</span><b id="xyzrange">—</b></div><div class="sub" id="cloudframe">Sensor frame —</div></section>
 <section class="panel third"><h2>Localization</h2><div class="metrics"><div class="metric"><div class="label">X</div><div class="value" id="x">—</div></div><div class="metric"><div class="label">Y</div><div class="value" id="y">—</div></div><div class="metric"><div class="label">Yaw</div><div class="value" id="yaw">—</div></div><div class="metric"><div class="label">Linear velocity</div><div class="value" id="vx">—</div></div></div><div class="row"><span>Angular velocity / pose age</span><b id="wzage">—</b></div><div class="row"><span>Pose source</span><b id="pose-source">Gazebo odometry</b></div></section>
-<section class="panel third"><h2>Planner</h2><div class="row"><span>Global recommended speed</span><b id="recommendedspeed">—</b></div><div class="row"><span>Local state</span><b id="localstate">WAITING</b></div><div class="row"><span>Selected steering</span><b id="steering">—</b></div><div class="row"><span>Obstacle clearance / score</span><b id="obstacle">—</b></div><div class="row"><span>Goal/frontier distance</span><b id="plannerdistance">—</b></div></section>
+<section class="panel third"><h2>Planner</h2><div class="row"><span>Global recommended speed</span><b id="recommendedspeed">—</b></div><div class="row"><span>Local state</span><b id="localstate">WAITING</b></div><div class="row"><span>Local recommended command</span><b id="localcommand">—</b></div><div class="row"><span>Selected steering</span><b id="steering">—</b></div><div class="row"><span>Obstacle clearance / score</span><b id="obstacle">—</b></div><div class="row"><span>Goal/frontier distance</span><b id="plannerdistance">—</b></div></section>
 <section class="panel half"><h2>Safety supervisor</h2><div id="safetybanner" class="safety-banner">SAFETY: UNKNOWN</div><div class="row"><span>Reason</span><b id="safetyreason">WAITING</b></div><div class="row"><span>Authoritative command (linear.x / angular.z)</span><b id="command">—</b></div><div class="row"><span>Command age</span><b id="commandage">—</b></div></section>
 <section class="panel half"><h2>Subsystem health</h2><div id="health" class="health"></div></section>
 <section class="panel half"><h2>Live event log</h2><div id="events" class="eventlist"></div></section>
@@ -167,7 +175,8 @@ let trail=[];let lastEventCount=0;
 function fmt(v,n=2){return v===null||v===undefined||!Number.isFinite(v)?'—':Number(v).toFixed(n)}
 function age(v){return v===null||v===undefined?'—':fmt(v,1)+' s'}
 function drawMap(s){const c=document.getElementById('map'),ctx=c.getContext('2d'),m=s.map;if(!m||!m.data){ctx.clearRect(0,0,c.width,c.height);return}const W=m.width,H=m.height;if(c.width!==c.clientWidth*devicePixelRatio||c.height!==c.clientHeight*devicePixelRatio){c.width=c.clientWidth*devicePixelRatio;c.height=c.clientHeight*devicePixelRatio}const raw=atob(m.data),cells=new Int8Array(raw.length);for(let i=0;i<raw.length;i++)cells[i]=raw.charCodeAt(i)>127?raw.charCodeAt(i)-256:raw.charCodeAt(i);const off=document.createElement('canvas');off.width=W;off.height=H;const ox=off.getContext('2d'),im=ox.createImageData(W,H);for(let r=0;r<H;r++)for(let x=0;x<W;x++){let v=cells[r*W+x],j=((H-1-r)*W+x)*4;if(v<0){im.data[j]=23;im.data[j+1]=35;im.data[j+2]=45}else if(v>=50){im.data[j]=230;im.data[j+1]=93;im.data[j+2]=82}else{im.data[j]=220;im.data[j+1]=232;im.data[j+2]=218}im.data[j+3]=255}ox.putImageData(im,0,0);ctx.fillStyle='#0b1118';ctx.fillRect(0,0,c.width,c.height);ctx.imageSmoothingEnabled=false;ctx.drawImage(off,0,0,c.width,c.height);const sx=c.width/W,sy=c.height/H;const pix=p=>[(p.x-m.origin_x)/m.resolution*sx,c.height-(p.y-m.origin_y)/m.resolution*sy];function path(points,color,width){if(!points||points.length<2)return;ctx.strokeStyle=color;ctx.lineWidth=width*devicePixelRatio;ctx.beginPath();points.forEach((p,i)=>{let q=pix(p);if(i)ctx.lineTo(q[0],q[1]);else ctx.moveTo(q[0],q[1])});ctx.stroke()}path(m.global_path,'#42d7e8',2);path(m.local_path,'#ffd166',3);ctx.fillStyle='#3ee8c1';for(const p of m.frontiers||[]){let q=pix(p);ctx.fillRect(q[0]-2,q[1]-2,4,4)}if(m.goal){let q=pix(m.goal);ctx.fillStyle='#3ee8c1';ctx.beginPath();ctx.arc(q[0],q[1],6*devicePixelRatio,0,Math.PI*2);ctx.fill()}if(s.pose){trail.push({x:s.pose.x,y:s.pose.y});if(trail.length>1500)trail.shift();path(trail,'#7b8dff',1.5)}if(m.home){let h=pix(m.home);ctx.strokeStyle='#ff78d1';ctx.lineWidth=2*devicePixelRatio;ctx.beginPath();ctx.arc(h[0],h[1],8*devicePixelRatio,0,Math.PI*2);ctx.stroke();ctx.fillStyle='#ff78d1';ctx.fillText('HOME',h[0]+9,h[1]-8)}if(s.pose){let q=pix(s.pose),scale=devicePixelRatio*8;ctx.save();ctx.translate(q[0],q[1]);ctx.rotate(-s.pose.yaw);ctx.fillStyle='#ffffff';ctx.beginPath();ctx.moveTo(scale,0);ctx.lineTo(-scale*.7,-scale*.58);ctx.lineTo(-scale*.7,scale*.58);ctx.closePath();ctx.fill();ctx.restore()}}
-async function update(){try{let r=await fetch('/api/status',{cache:'no-store'}),s=await r.json();document.getElementById('system').textContent=s.system;document.getElementById('system').className='pill status '+(s.system==='ONLINE'?'good':s.system==='DEGRADED'?'warn':'bad');document.getElementById('domain').textContent=s.domain;document.getElementById('runtime').textContent=fmt(s.runtime,0)+' s';document.getElementById('simtime').textContent=s.sim_time===null?'—':fmt(s.sim_time,1)+' s';document.getElementById('mapstate').textContent='MAP: '+s.mapping.state;document.getElementById('mission').textContent=s.mission.state+(s.mission.reason?' · '+s.mission.reason:'');document.getElementById('mode').textContent=s.exploration.state;document.getElementById('frontierdist').textContent=s.exploration.distance===null?'—':fmt(s.exploration.distance,2)+' m';document.getElementById('frontiercount').textContent=s.exploration.frontier_count;document.getElementById('pathstatus').textContent=s.planner.global_path_status;document.getElementById('explored').textContent=fmt(s.map.known_percent,1)+'%';document.getElementById('target').textContent=s.exploration.goal?fmt(s.exploration.goal.x,2)+', '+fmt(s.exploration.goal.y,2):'—';document.getElementById('plannerstate').textContent=s.planner.state;document.getElementById('locsource').textContent=s.localization.source||'WAITING';document.getElementById('homearea').textContent=s.mission.home?fmt(s.mission.home.x,1)+', '+fmt(s.mission.home.y,1)+' · '+fmt(s.mission.known_area_m2,1)+' m²':'Waiting for home pose';let mm=s.mission.metrics;document.getElementById('missionmetrics').textContent=mm?mm.mission_result+' · '+fmt(mm.distance_travelled_m,1)+' m traveled · '+fmt(mm.frontiers_completed,0)+' frontiers':'Unavailable';document.getElementById('camerainfo').textContent=s.camera.resolution+' · '+fmt(s.camera.fps,1)+' FPS · '+age(s.camera.age);document.getElementById('travscore').textContent=fmt(s.traversability.mean_score,3);document.getElementById('terrain').textContent=(s.terrain.class||'—')+' · conf '+fmt(s.terrain.class_confidence,2);document.getElementById('geometry').textContent=fmt(s.terrain.slope_deg,1)+'° · '+fmt(s.terrain.roughness_m,3)+' m · '+fmt(s.terrain.geometry_confidence,2);document.getElementById('nearest').textContent=s.depth.nearest===null?'—':fmt(s.depth.nearest,2)+' m';document.getElementById('depthcount').textContent=s.depth.obstacle_samples+' / '+s.depth.finite+' ('+fmt(s.depth.valid_ratio*100,1)+'%)';document.getElementById('cloudrate').textContent=fmt(s.depth.rate_hz,1)+' Hz · '+age(s.depth.age);document.getElementById('xyzrange').textContent=s.depth.ranges;document.getElementById('cloudframe').textContent='Frame: '+(s.depth.frame||'—');document.getElementById('x').textContent=fmt(s.pose?.x,2)+' m';document.getElementById('y').textContent=fmt(s.pose?.y,2)+' m';document.getElementById('yaw').textContent=fmt(s.pose?.yaw,2)+' rad';document.getElementById('vx').textContent=fmt(s.pose?.vx,2)+' m/s';document.getElementById('wzage').textContent=fmt(s.pose?.wz,2)+' rad/s · '+age(s.pose?.age);document.getElementById('pose-source').textContent=s.localization.source||'—';document.getElementById('recommendedspeed').textContent=s.planner.recommended_speed===null?'—':fmt(s.planner.recommended_speed,3)+' m/s';document.getElementById('localstate').textContent=s.planner.local_state;document.getElementById('steering').textContent=fmt(s.planner.steering_deg,1)+'°';document.getElementById('obstacle').textContent=fmt(s.planner.clearance,2)+' m · '+fmt(s.planner.obstacle_score,2);document.getElementById('plannerdistance').textContent=s.exploration.distance===null?'—':fmt(s.exploration.distance,2)+' m';let sb=document.getElementById('safetybanner');sb.textContent='SAFETY: '+s.safety.state;sb.className='safety-banner '+(s.safety.state==='SAFE'?'':'stopped');document.getElementById('safetyreason').textContent=s.safety.reason;document.getElementById('command').textContent=fmt(s.command.vx,3)+' m/s · '+fmt(s.command.wz,3)+' rad/s';document.getElementById('commandage').textContent=age(s.command.age);document.getElementById('mapdims').textContent=s.map.width+'×'+s.map.height+' @ '+fmt(s.map.resolution,2)+' m';document.getElementById('cellcounts').textContent=s.map.known+' known · '+s.map.free+' free · '+s.map.occupied+' occupied · '+s.map.unknown+' unknown';document.getElementById('knownpct').textContent=fmt(s.map.known_percent,2)+'%';document.getElementById('health').innerHTML=Object.entries(s.health).map(([k,v])=>'<div class="health-item"><span class="label">'+k+'</span><b class="'+(v==='LIVE'?'good':(v==='STALE'||v==='DEGRADED')?'warn':'bad')+'">'+v+'</b></div>').join('');document.getElementById('events').innerHTML=s.events.map(e=>'<div class="event"><time>'+e.time+'</time>'+e.message+'</div>').join('')||'<div class="small">No runtime events received yet.</div>';document.getElementById('topics').innerHTML=s.topics.map(t=>'<tr><td>'+t.name+'</td><td>'+t.type+'</td><td>'+fmt(t.rate,1)+' Hz</td><td>'+age(t.age)+'</td><td class="'+(t.status==='LIVE'?'good':t.status==='STALE'?'warn':'bad')+'">'+t.status+'</td></tr>').join('');drawMap(s)}catch(e){document.getElementById('system').textContent='DASHBOARD API UNAVAILABLE'}}setInterval(update,1000);update();
+function drawCloud(s){const c=document.getElementById('pointcloud'),ctx=c.getContext('2d');if(c.width!==c.clientWidth*devicePixelRatio||c.height!==c.clientHeight*devicePixelRatio){c.width=c.clientWidth*devicePixelRatio;c.height=c.clientHeight*devicePixelRatio}const w=c.width,h=c.height;ctx.fillStyle='#09121a';ctx.fillRect(0,0,w,h);const maxX=18,maxY=7,scale=Math.min(w/(2*maxY),h/maxX);ctx.strokeStyle='#344b5a';ctx.lineWidth=devicePixelRatio;for(const x of [3,6,9,12,15,18]){let yy=h-x*scale;ctx.beginPath();ctx.moveTo(w/2-7*scale,yy);ctx.lineTo(w/2+7*scale,yy);ctx.stroke()}ctx.fillStyle='#8295a4';ctx.font=`${11*devicePixelRatio}px sans-serif`;ctx.fillText('ROBOT',w/2-22*devicePixelRatio,h-8*devicePixelRatio);for(const p of s.depth.points||[]){const x=w/2-p[1]*scale,y=h-p[0]*scale;if(x<0||x>w||y<0||y>h)continue;ctx.fillStyle=p[2]>0.3?'#fa876e':'#45d6e8';ctx.fillRect(x,y,2*devicePixelRatio,2*devicePixelRatio)}}
+async function update(){try{let r=await fetch('/api/status',{cache:'no-store'}),s=await r.json();document.getElementById('system').textContent=s.system;document.getElementById('system').className='pill status '+(s.system==='ONLINE'?'good':s.system==='DEGRADED'?'warn':'bad');document.getElementById('domain').textContent=s.domain;document.getElementById('runtime').textContent=fmt(s.runtime,0)+' s';document.getElementById('simtime').textContent=s.sim_time===null?'—':fmt(s.sim_time,1)+' s';document.getElementById('mapstate').textContent='MAP: '+s.mapping.state;document.getElementById('mission').textContent=s.mission.state+(s.mission.reason?' · '+s.mission.reason:'');document.getElementById('mode').textContent=s.exploration.state;document.getElementById('frontierdist').textContent=s.exploration.distance===null?'—':fmt(s.exploration.distance,2)+' m';document.getElementById('frontiercount').textContent=s.exploration.frontier_count;document.getElementById('pathstatus').textContent=s.planner.global_path_status;document.getElementById('explored').textContent=fmt(s.map.known_percent,1)+'%';document.getElementById('target').textContent=s.exploration.goal?fmt(s.exploration.goal.x,2)+', '+fmt(s.exploration.goal.y,2):'—';document.getElementById('plannerstate').textContent=s.planner.state;document.getElementById('locsource').textContent=s.localization.source||'WAITING';document.getElementById('homearea').textContent=s.mission.home?fmt(s.mission.home.x,1)+', '+fmt(s.mission.home.y,1)+' · '+fmt(s.mission.known_area_m2,1)+' m²':'Waiting for home pose';let mm=s.mission.metrics;document.getElementById('missionmetrics').textContent=mm?mm.mission_result+' · '+fmt(mm.distance_travelled_m,1)+' m traveled · '+fmt(mm.frontiers_completed,0)+' frontiers':'Unavailable';document.getElementById('camerainfo').textContent=s.camera.resolution+' · '+fmt(s.camera.fps,1)+' FPS · '+s.camera.frames+' frames · '+age(s.camera.age);document.getElementById('travscore').textContent=fmt(s.traversability.mean_score,3);document.getElementById('terrain').textContent=(s.terrain.class||'—')+' · conf '+fmt(s.terrain.class_confidence,2);document.getElementById('geometry').textContent=fmt(s.terrain.slope_deg,1)+'° · '+fmt(s.terrain.roughness_m,3)+' m · '+fmt(s.terrain.geometry_confidence,2);document.getElementById('nearest').textContent=s.depth.nearest===null?'—':fmt(s.depth.nearest,2)+' m';document.getElementById('depthcount').textContent=s.depth.obstacle_samples+' / '+s.depth.finite+' ('+fmt(s.depth.valid_ratio*100,1)+'%)';document.getElementById('cloudrate').textContent=fmt(s.depth.rate_hz,1)+' Hz · '+age(s.depth.age);document.getElementById('xyzrange').textContent=s.depth.ranges;document.getElementById('cloudframe').textContent='Frame: '+(s.depth.frame||'—');document.getElementById('x').textContent=fmt(s.pose?.x,2)+' m';document.getElementById('y').textContent=fmt(s.pose?.y,2)+' m';document.getElementById('yaw').textContent=fmt(s.pose?.yaw,2)+' rad';document.getElementById('vx').textContent=fmt(s.pose?.vx,2)+' m/s';document.getElementById('wzage').textContent=fmt(s.pose?.wz,2)+' rad/s · '+age(s.pose?.age);document.getElementById('pose-source').textContent=s.localization.source||'—';document.getElementById('recommendedspeed').textContent=s.planner.recommended_speed===null?'—':fmt(s.planner.recommended_speed,3)+' m/s';document.getElementById('localstate').textContent=s.planner.local_state;let lc=s.planner.local_command;document.getElementById('localcommand').textContent=fmt(lc.vx,3)+' m/s · '+fmt(lc.wz,3)+' rad/s · '+age(lc.age);document.getElementById('steering').textContent=fmt(s.planner.steering_deg,1)+'°';document.getElementById('obstacle').textContent=fmt(s.planner.clearance,2)+' m · '+fmt(s.planner.obstacle_score,2);document.getElementById('plannerdistance').textContent=s.exploration.distance===null?'—':fmt(s.exploration.distance,2)+' m';let sb=document.getElementById('safetybanner');sb.textContent='SAFETY: '+s.safety.state;sb.className='safety-banner '+(s.safety.state==='SAFE'?'':'stopped');document.getElementById('safetyreason').textContent=s.safety.reason;document.getElementById('command').textContent=fmt(s.command.vx,3)+' m/s · '+fmt(s.command.wz,3)+' rad/s';document.getElementById('commandage').textContent=age(s.command.age);document.getElementById('mapdims').textContent=s.map.width+'×'+s.map.height+' @ '+fmt(s.map.resolution,2)+' m';document.getElementById('cellcounts').textContent=s.map.known+' known · '+s.map.free+' free · '+s.map.occupied+' occupied · '+s.map.unknown+' unknown';document.getElementById('knownpct').textContent=fmt(s.map.known_percent,2)+'%';document.getElementById('health').innerHTML=Object.entries(s.health).map(([k,v])=>'<div class="health-item"><span class="label">'+k+'</span><b class="'+(v==='LIVE'?'good':(v==='STALE'||v==='DEGRADED')?'warn':'bad')+'">'+v+'</b></div>').join('');document.getElementById('events').innerHTML=s.events.map(e=>'<div class="event"><time>'+e.time+'</time>'+e.message+'</div>').join('')||'<div class="small">No runtime events received yet.</div>';document.getElementById('topics').innerHTML=s.topics.map(t=>'<tr><td>'+t.name+'</td><td>'+t.type+'</td><td>'+fmt(t.rate,1)+' Hz</td><td>'+age(t.age)+'</td><td class="'+(t.status==='LIVE'?'good':t.status==='STALE'?'warn':'bad')+'">'+t.status+'</td></tr>').join('');drawMap(s);drawCloud(s)}catch(e){document.getElementById('system').textContent='DASHBOARD API UNAVAILABLE'}}setInterval(update,1000);update();
 async function updateMissionDetail(){try{let r=await fetch('/api/status',{cache:'no-store'}),s=await r.json(),m=s.mission.metrics;if(!m)return;document.getElementById('missiondetail-position').textContent=fmt(m.mission_duration_s,1)+' s · '+fmt(m.distance_travelled_m,2)+' m · '+fmt(m.final_position_error_m,2)+' m';document.getElementById('missiondetail-events').textContent=fmt(m.number_of_replans,0)+' · '+fmt(m.number_of_safety_stops,0)+' · '+fmt(m.blocked_goals,0);document.getElementById('missiondetail-obstacles').textContent=fmt(m.minimum_obstacle_clearance_m,2)+' m · '+fmt(m.obstacle_observations,0)+' · '+(m.collision_detected===null?'unknown':m.collision_detected?'YES':'NO');document.getElementById('missiondetail-map').textContent=[m.known_cells,m.free_cells,m.occupied_cells,m.unknown_cells].map(v=>v===null?'?':v).join(' / ')+' · '+(s.mission.result_path||'pending')}catch(e){}}setInterval(updateMissionDetail,1000);updateMissionDetail();
 </script></body></html>'''
 
@@ -182,6 +191,8 @@ class DashboardNode(Node):
         self.last_safety = None
         self.last_steering = None
         self.last_obstacle_event = 0.0
+        self.last_health = {}
+        self.last_system = None
         self.map_qos = QoSProfile(
             depth=1, reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.TRANSIENT_LOCAL)
@@ -227,6 +238,8 @@ class DashboardNode(Node):
         self.create_subscription(String, '/safety/state', self.safety_callback, 10)
         self.create_subscription(String, '/safety/reason', self.safety_reason_callback, 10)
         self.create_subscription(Twist, '/cmd_vel', self.command_callback, 10)
+        self.create_subscription(
+            Twist, '/planner/local_recommended_cmd_vel', self.local_command_callback, 10)
         self.create_timer(2.0, self.refresh_topics)
         event('Dashboard connected; awaiting live subsystem messages')
 
@@ -522,8 +535,11 @@ class DashboardNode(Node):
 
     def planner_state_callback(self, msg):
         with LOCK:
+            old = STATE['planner_state']
             STATE['planner_state'] = msg.data
             self.mark('/planner/navigation_state')
+        if old != msg.data:
+            event(f'Global planner state: {msg.data}')
 
     def recommended_speed_callback(self, msg):
         with LOCK:
@@ -532,8 +548,11 @@ class DashboardNode(Node):
 
     def local_state_callback(self, msg):
         with LOCK:
+            old = STATE['local_state']
             STATE['local_state'] = msg.data
             self.mark('/planner/local_navigation_state')
+        if old != msg.data:
+            event(f'Local planner state: {msg.data}')
 
     def steering_callback(self, msg):
         angle = float(msg.data)
@@ -580,6 +599,14 @@ class DashboardNode(Node):
             STATE['cmd'] = {'vx': float(msg.linear.x), 'wz': float(msg.angular.z)}
             self.mark('/cmd_vel')
 
+    def local_command_callback(self, msg):
+        with LOCK:
+            STATE['local_cmd_last'] = time.time()
+            STATE['local_cmd'] = {
+                'vx': float(msg.linear.x), 'wz': float(msg.angular.z),
+            }
+            self.mark('/planner/local_recommended_cmd_vel')
+
     def refresh_topics(self):
         try:
             found = dict(self.get_topic_names_and_types())
@@ -588,6 +615,27 @@ class DashboardNode(Node):
         with LOCK:
             TOPIC_TYPES.clear()
             TOPIC_TYPES.update({k: (v[0] if v else 'unknown') for k, v in found.items()})
+        now = time.time()
+        health, system = subsystem_health({
+            'camera': age_of(STATE['camera_last'], now),
+            'cloud': age_of(STATE['cloud_last'], now),
+            'imu': age_of(STATE['imu_last'], now),
+            'localization': age_of(STATE['localization_last'], now),
+            'mapping': age_of(STATE['map_last'], now),
+            'traversability': age_of(STATE['trav_last'], now),
+            'exploration': age_of(TOPIC_TIMES.get('/exploration/state'), now),
+            'global_planner': age_of(TOPIC_TIMES.get('/planner/global_path'), now),
+            'local_planner': age_of(TOPIC_TIMES.get('/planner/local_steering_angle'), now),
+            'safety': age_of(TOPIC_TIMES.get('/safety/state'), now),
+        })
+        for name, status in health.items():
+            if (self.last_health.get(name) != status
+                    and status in ('STALE', 'OFFLINE', 'DEGRADED')):
+                event(f'{name} health: {status}')
+        if self.last_system != system and system != 'ONLINE':
+            event(f'ROS autonomy status: {system}')
+        self.last_health = health
+        self.last_system = system
 
 
 def age_of(stamp, now):
@@ -609,6 +657,11 @@ def subsystem_health(ages):
               else 'DEGRADED' if 'LIVE' in (camera, cloud)
               else 'OFFLINE' if camera == cloud == 'OFFLINE' else 'STALE')
     health = {
+        'RGB': camera,
+        'DEPTH': cloud,
+        'IMU': age_health(ages.get('imu')),
+        'POSE': age_health(ages.get('localization')),
+        'MAP': age_health(ages.get('mapping')),
         'SENSOR': sensor,
         'LOCALIZATION': age_health(ages.get('localization')),
         'MAPPING': age_health(ages.get('mapping')),
@@ -652,6 +705,7 @@ def status_payload():
         health, system = subsystem_health({
             'camera': camera_age,
             'cloud': cloud_age,
+            'imu': age_of(state['imu_last'], now),
             'localization': loc_age,
             'mapping': map_age,
             'traversability': trav_age,
@@ -675,7 +729,8 @@ def status_payload():
             if name not in TOPIC_TIMES and name not in {
                 '/camera', '/camera_info', '/depth_camera/points', '/imu', '/clock',
                 '/model/sih_ugv/odometry', '/map', '/cmd_vel',
-                '/planner/global_path', '/planner/local_path', '/safety/state',
+                '/planner/global_path', '/planner/local_path',
+                '/planner/local_recommended_cmd_vel', '/safety/state',
             }:
                 continue
             stamp = TOPIC_TIMES.get(name)
@@ -694,12 +749,13 @@ def status_payload():
             'nearest': d.get('nearest'), 'finite': d.get('finite', 0),
             'samples': d.get('samples', 0), 'valid_ratio': d.get('finite', 0) / max(1, d.get('samples', 0)),
             'obstacle_samples': d.get('obstacle_samples', 0), 'ranges': ranges,
+            'points': d.get('points', []),
         }
         payload = {
             'system': system, 'domain': os.environ.get('ROS_DOMAIN_ID', '0'),
             'runtime': time.monotonic() - STARTED, 'sim_time': state['clock_sec'],
             'camera': {'resolution': f"{state['camera_width']}×{state['camera_height']}" if state['camera_width'] else '—',
-                       'fps': fps, 'age': camera_age},
+                       'fps': fps, 'age': camera_age, 'frames': state['camera_count']},
             'traversability': {'mean_score': state['mean_score'], 'age': trav_age},
             'terrain': {'class': state['trav_class'], 'class_confidence': state['class_confidence'],
                         'slope_deg': state['slope_mean'], 'roughness_m': state['roughness_mean'],
@@ -720,7 +776,9 @@ def status_payload():
             'planner': {'global_path_status': state['global_path_status'], 'state': state['planner_state'],
                         'recommended_speed': state['recommended_speed'],
                         'local_state': state['local_state'], 'steering_deg': state['steering_deg'],
-                        'clearance': state['clearance'], 'obstacle_score': state['obstacle_score']},
+                        'clearance': state['clearance'], 'obstacle_score': state['obstacle_score'],
+                        'local_command': {**state['local_cmd'],
+                                          'age': age_of(state['local_cmd_last'], now)}},
             'safety': {'state': state['safety_state'], 'reason': state['safety_reason']},
             'command': {**state['cmd'], 'age': cmd_age}, 'health': health,
             'events': list(EVENTS), 'topics': topics,

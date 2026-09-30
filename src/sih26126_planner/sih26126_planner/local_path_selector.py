@@ -147,7 +147,7 @@ def sample_corridor_score(
     return score, validity
 
 
-def pointcloud_to_array(msg: PointCloud2) -> Optional[np.ndarray]:
+def pointcloud_to_array(msg: PointCloud2, stride: int = 1) -> Optional[np.ndarray]:
     """Convert an XYZ point cloud to an Nx3 float32 array."""
     if msg.width <= 0 or msg.height <= 0:
         return None
@@ -155,6 +155,7 @@ def pointcloud_to_array(msg: PointCloud2) -> Optional[np.ndarray]:
     if msg.point_step < 12:
         return None
 
+    stride = max(1, int(stride))
     required = msg.row_step * msg.height
 
     raw = np.frombuffer(msg.data, dtype=np.uint8)
@@ -164,12 +165,12 @@ def pointcloud_to_array(msg: PointCloud2) -> Optional[np.ndarray]:
 
     if msg.row_step == msg.width * msg.point_step:
         points = np.ndarray(
-            shape=(msg.height * msg.width, 3),
+            shape=(msg.height, msg.width, 3),
             dtype=np.float32,
             buffer=raw,
-            strides=(msg.point_step, 4),
+            strides=(msg.row_step, msg.point_step, 4),
         )
-        return points.copy()
+        return points[::stride, ::stride].reshape(-1, 3).copy()
 
     # Handle row padding by extracting each row independently.
     rows = []
@@ -183,7 +184,8 @@ def pointcloud_to_array(msg: PointCloud2) -> Optional[np.ndarray]:
             buffer=row_bytes,
             strides=(msg.point_step, 4),
         )
-        rows.append(row_points.copy())
+        if row % stride == 0:
+            rows.append(row_points[::stride].copy())
 
     if not rows:
         return None
@@ -531,14 +533,18 @@ class LocalPathSelector(Node):
         self.pointcloud_received_at = None
         self.odom_received_at = None
 
-        self.candidate_degrees = [-25.0, -16.7, -8.3, 0.0,
-                                  8.3, 16.7, 25.0]
+        # Keep edge candidates inside the depth camera's ~±30° horizontal
+        # field of view so the rover can steer around obstacles that fill the
+        # narrower center candidates without treating unseen space as clear.
+        self.candidate_degrees = [-28.0, -25.0, -16.7, -8.3, 0.0,
+                                  8.3, 16.7, 25.0, 28.0]
 
-        self.declare_parameter('max_angle_deg', 25.0)
+        self.declare_parameter('max_angle_deg', 28.0)
         self.declare_parameter('lookahead_m', 3.0)
         self.declare_parameter('publish_hz', 5.0)
         self.declare_parameter('max_angular_speed', 0.6)
         self.declare_parameter('max_sensor_age_s', 0.75)
+        self.declare_parameter('pointcloud_stride', 4)
 
         self.map_sub = self.create_subscription(
             Image,
@@ -772,7 +778,10 @@ class LocalPathSelector(Node):
             for deg in self.candidate_degrees
         ]
 
-        points = pointcloud_to_array(self.pointcloud)
+        points = pointcloud_to_array(
+            self.pointcloud,
+            int(self.get_parameter('pointcloud_stride').value),
+        )
 
         if points is None:
             self.publish_stop('INVALID_DEPTH')

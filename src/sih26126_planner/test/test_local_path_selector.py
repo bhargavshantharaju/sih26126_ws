@@ -1,8 +1,10 @@
 """Tests for spatial local path selection."""
 
 import math
+import struct
 
 import numpy as np
+from sensor_msgs.msg import PointCloud2
 
 from sih26126_planner.local_path_selector import (
     angle_to_pixel,
@@ -12,6 +14,7 @@ from sih26126_planner.local_path_selector import (
     obstacle_clearance,
     obstacle_clearance_score,
     obstacle_return_evidence,
+    pointcloud_to_array,
     sample_corridor_score,
     score_candidate,
     select_best_candidate,
@@ -34,6 +37,25 @@ def test_dynamic_inputs_must_be_recent():
     assert not input_is_fresh(9.0, 0.75, now=10.0)
     assert not input_is_fresh(None, 0.75, now=10.0)
     assert not input_is_fresh(10.1, 0.75, now=10.0)
+
+
+def test_local_planner_depth_stride_preserves_organized_geometry():
+    """The local scorer can downsample dense organized sensor frames safely."""
+    msg = PointCloud2()
+    msg.height = 4
+    msg.width = 4
+    msg.point_step = 12
+    msg.row_step = 48
+    msg.data = b''.join(
+        struct.pack('<fff', float(row * 10 + col), float(col), float(row))
+        for row in range(4) for col in range(4)
+    )
+
+    points = pointcloud_to_array(msg, stride=2)
+
+    assert points.shape == (4, 3)
+    np.testing.assert_array_equal(
+        points[:, 0], np.array([0.0, 2.0, 20.0, 22.0], dtype=np.float32))
 
 
 def test_goal_angle_straight_ahead():
@@ -150,6 +172,33 @@ def test_select_candidate_avoids_bad_center():
     assert selected != 0.0
     assert score > 0.50
     assert math.isclose(obstacle_score, 1.0)
+
+
+def test_visible_edge_candidate_steers_around_centered_depth_obstacle():
+    """A clear path near the camera FOV edge remains reachable to the selector."""
+    image = np.full((480, 640), 220, dtype=np.uint8)
+    points = [
+        (x, y, 0.0)
+        for x in np.linspace(0.3, 3.0, 32)
+        for y in np.linspace(-1.8, 1.8, 37)
+    ]
+    points.append((0.75, 0.0, 0.5))
+    points = np.asarray(points, dtype=np.float32)
+    edge_angle = math.radians(28.0)
+
+    selected, _, obstacle_score = select_best_candidate(
+        image,
+        [math.radians(-28.0), math.radians(-25.0), 0.0,
+         math.radians(25.0), edge_angle],
+        554.25,
+        320.0,
+        edge_angle,
+        0.0,
+        points,
+    )
+
+    assert math.isclose(selected, edge_angle)
+    assert obstacle_score > 0.01
 
 
 def test_obstacle_clearance_no_obstacle():

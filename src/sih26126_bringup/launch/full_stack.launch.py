@@ -1,3 +1,5 @@
+import fcntl
+import os
 import shutil
 
 from ament_index_python.packages import get_package_share_directory
@@ -8,9 +10,29 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
+_STACK_LOCK_FD = None
+
+
+def acquire_stack_lock():
+    """Prevent duplicate full stacks from sharing Gazebo and ROS topics."""
+    global _STACK_LOCK_FD
+    lock_path = '/tmp/sih26126_full_stack.lock'
+    descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as exc:
+        os.close(descriptor)
+        raise RuntimeError(
+            'Another SIH26126 full_stack launch is already running; stop it '
+            'before starting a second Gazebo/autonomy stack.'
+        ) from exc
+    _STACK_LOCK_FD = descriptor
+
+
 def generate_launch_description():
+    acquire_stack_lock()
     sim_share = get_package_share_directory('sih26126_sim')
-    default_world = f'{sim_share}/worlds/terrain_test.sdf'
+    default_world = f'{sim_share}/worlds/showcase_terrain.sdf'
     world = LaunchConfiguration('world')
     dashboard_port = LaunchConfiguration('dashboard_port')
     gui = LaunchConfiguration('gui')
@@ -71,7 +93,7 @@ def generate_launch_description():
         description='Name recorded in the mission result artifact.',
     )
     mission_timeout_arg = DeclareLaunchArgument(
-        'mission_timeout_sec', default_value='600.0',
+        'mission_timeout_sec', default_value='1800.0',
         description='Failure cutoff in seconds; never used as exploration completion.',
     )
 

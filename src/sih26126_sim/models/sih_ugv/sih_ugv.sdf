@@ -82,6 +82,32 @@
         </geometry>
       </visual>
 
+      <!-- Clearly visible outdoor RGB-D payload; sensor joints/topics remain unchanged. -->
+      <visual name="sensor_roof_armor">
+        <pose>0.30 0 0.93 0 0 0</pose>
+        <geometry><box><size>0.42 0.34 0.045</size></box></geometry>
+        <material>
+          <ambient>0.72 0.36 0.07 1</ambient>
+          <diffuse>0.92 0.48 0.10 1</diffuse>
+          <specular>0.25 0.22 0.16 1</specular>
+        </material>
+      </visual>
+      <visual name="sensor_guard_left">
+        <pose>0.30 0.155 0.83 0 0 0</pose>
+        <geometry><box><size>0.38 0.035 0.17</size></box></geometry>
+        <material><diffuse>0.84 0.40 0.08 1</diffuse></material>
+      </visual>
+      <visual name="sensor_guard_right">
+        <pose>0.30 -0.155 0.83 0 0 0</pose>
+        <geometry><box><size>0.38 0.035 0.17</size></box></geometry>
+        <material><diffuse>0.84 0.40 0.08 1</diffuse></material>
+      </visual>
+      <visual name="equipment_roof_panel">
+        <pose>-0.24 0 0.27 0 0 0</pose>
+        <geometry><box><size>0.48 0.46 0.035</size></box></geometry>
+        <material><ambient>0.035 0.10 0.15 1</ambient><diffuse>0.07 0.20 0.28 1</diffuse></material>
+      </visual>
+
       <!-- Front bumper -->
       <visual name="front_bumper">
         <pose>0.65 0 0.00 0 0 0</pose>
