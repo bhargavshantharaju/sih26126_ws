@@ -127,4 +127,4 @@ colcon test
 colcon test-result --all
 ```
 
-Expected: all tests pass (210 unit tests as of submission).
+Expected: 321 tests total; 316 passed; 5 skipped (current validation).

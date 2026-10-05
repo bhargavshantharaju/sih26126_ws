@@ -240,7 +240,7 @@ Verified live on this stack with `slam:=true fusion:=true scenario:=showcase`:
 | `/odometry/filtered` (EKF) | ~17 Hz ✅           |
 | `map → odom` TF (SLAM)     | Published ✅        |
 | `fusion_health_monitor`    | HEALTHY ✅          |
-| Unit test suite            | 210 / 210 pass ✅   |
+| Unit test suite            | 321 total; 316 passed; 5 skipped ✅   |
 
 See `docs/VALIDATION.md` for full details.
 

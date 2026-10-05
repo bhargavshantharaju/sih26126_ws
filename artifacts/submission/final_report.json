@@ -15,7 +15,7 @@
   "tests": {
     "framework": "pytest via colcon test",
     "total": 321,
-    "passed": 321,
+    "passed": 316,
     "failures": 0,
     "errors": 0,
     "skipped": 5,
