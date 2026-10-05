@@ -1,0 +1,119 @@
+{
+  "project": "DRISTHI",
+  "subtitle": "Autonomous Terrain-Aware UGV Navigation",
+  "team": "sih26126",
+  "submission_timestamp": "2026-10-05T16:00:00Z",
+  "launch_command": "ros2 launch sih26126_bringup full_stack.launch.py slam:=true fusion:=true start_dashboard:=true gui:=false scenario:=showcase",
+  "build": {
+    "status": "PASS",
+    "packages": 12,
+    "failures": 0,
+    "tool": "colcon",
+    "ros_distro": "jazzy",
+    "build_time_seconds": 6.67
+  },
+  "tests": {
+    "framework": "pytest via colcon test",
+    "total": 321,
+    "passed": 321,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 5,
+    "status": "PASS"
+  },
+  "lidar_bridge_fix": {
+    "root_cause": "ros_gz_bridge parameter_bridge ignores config_file parameter when CLI arguments are also present",
+    "solution": "Dedicated lidar_bridge Node using config_file only (no CLI arguments)",
+    "gz_topic": "/lidar/points/points",
+    "gz_type": "gz.msgs.PointCloudPacked",
+    "ros_topic": "/lidar/points",
+    "ros_type": "sensor_msgs/msg/PointCloud2",
+    "verified_hz": 5.6,
+    "verified_date": "2026-10-05"
+  },
+  "sensor_validation": {
+    "lidar_points_hz": 5.6,
+    "lidar_scan_2d_hz": 5.6,
+    "imu_hz": 100,
+    "odometry_filtered_hz": 17,
+    "map_to_odom_tf": true,
+    "verified_date": "2026-10-05"
+  },
+  "slam": {
+    "package": "slam_toolbox",
+    "mode": "async",
+    "scan_topic": "/lidar/scan_2d",
+    "tf_authority": "map -> odom",
+    "activation": "slam_activator lifecycle service",
+    "status": "VERIFIED"
+  },
+  "sensor_fusion": {
+    "package": "robot_localization",
+    "type": "EKF",
+    "inputs": ["wheel odometry", "IMU"],
+    "tf_authority": "odom -> base_link (when fusion:=true)",
+    "output_topic": "/odometry/filtered",
+    "output_hz": 17,
+    "health_monitor": "fusion_health_monitor",
+    "health_status": "HEALTHY",
+    "status": "VERIFIED"
+  },
+  "safety": {
+    "cmd_vel_authority": "safety_supervisor (sole publisher)",
+    "recovery_node": "stuck_recovery (advisory only)",
+    "stuck_recovery_tests": "deterministic unit tests covering FSM, guard conditions, displacement",
+    "degraded_autonomy": "monitors localization, LiDAR health, recovery state"
+  },
+  "dashboard": {
+    "type": "HTTP read-only live dashboard",
+    "default_port": 8080,
+    "url": "http://localhost:8080",
+    "features": [
+      "Live occupancy map with robot, paths, frontiers",
+      "Safety state and reason",
+      "Autonomy mode and degradations",
+      "Active risk assessment",
+      "Dynamic obstacle tracking",
+      "Mission intelligence events timeline",
+      "Technical details (collapsible ROS topic status)"
+    ],
+    "improvements": [
+      "Fixed duplicate CSS rules",
+      "Made topic table collapsible for evaluator-friendly view",
+      "Evaluator questions answered prominently"
+    ]
+  },
+  "logging_improvements": {
+    "safety_supervisor": "throttle increased 2.0s -> 10.0s",
+    "perception_baseline": "log interval 30 frames -> 300 frames",
+    "result": "reduced log spam while retaining state-change visibility"
+  },
+  "dynamic_obstacle_scenario": {
+    "status": "EXPERIMENTAL_INCOMPLETE",
+    "note": "Scenario code exists (objective4_obstacle_controller, obstacle_extractor, obstacle_tracker) but runtime validation has not been demonstrated. Forward LiDAR returns from moving obstacle and evasive reaction are unverified. Do not claim Objective 4 is complete."
+  },
+  "documentation": {
+    "files_created": [
+      "docs/ARCHITECTURE.md",
+      "docs/RUNNING.md",
+      "docs/VALIDATION.md",
+      "docs/KNOWN_LIMITATIONS.md"
+    ],
+    "files_updated": [
+      "README.md (added Validation Summary)"
+    ],
+    "status": "COMPLETE"
+  },
+  "known_limitations": [
+    "Dynamic obstacle detection not validated in runtime",
+    "Terrain confidence/temporal memory not implemented",
+    "Information-gain-aware frontier selection not implemented",
+    "Live stuck-recovery test scenario not implemented",
+    "SLAM cold-start: occasional lifecycle timeout on first launch (restart resolves)",
+    "Gazebo GUI may not render in WSL (use gui:=false)"
+  ],
+  "git": {
+    "branch": "feat/localization-repair",
+    "remote": "https://github.com/bhargavshantharaju/sih26126_ws.git"
+  }
+}

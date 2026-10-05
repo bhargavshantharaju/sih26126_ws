@@ -185,7 +185,11 @@ class OnlineMapper(Node):
             reliability=ReliabilityPolicy.RELIABLE,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
         )
-        self.map_pub = self.create_publisher(OccupancyGrid, '/map', self.qos)
+        # Configurable output topic: use /slam_map when SLAM is active so
+        # slam_toolbox's /map (frame_id=map) remains the unambiguous SLAM map.
+        self.declare_parameter('map_topic', '/map')
+        map_topic = self.get_parameter('map_topic').value
+        self.map_pub = self.create_publisher(OccupancyGrid, map_topic, self.qos)
         self.state_pub = self.create_publisher(String, '/mapping/state', 10)
         self.pose_sub = self.create_subscription(
             PoseStamped, '/localization/pose', self.pose_callback, 10)

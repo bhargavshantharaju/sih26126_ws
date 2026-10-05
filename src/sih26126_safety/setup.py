@@ -26,6 +26,9 @@ setup(
         'console_scripts': [
             'safety_supervisor = '
             'sih26126_safety.safety_supervisor:main',
+            'stuck_recovery = '
+            'sih26126_safety.stuck_recovery:main',
+            'degraded_autonomy = sih26126_safety.degraded_autonomy:main',
         ],
     },
 )

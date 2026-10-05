@@ -27,6 +27,11 @@ setup(
             'sih26126_autonomy.frontier_explorer:main',
             'mission_manager = '
             'sih26126_autonomy.mission_manager:main',
+            'objective4_obstacle_controller = '
+            'sih26126_autonomy.dynamic_obstacle_demo:controller_main',
+            'objective4_dynamic_obstacle_demo = '
+            'sih26126_autonomy.dynamic_obstacle_demo:main',
+            'mission_intelligence = sih26126_autonomy.mission_intelligence:main',
         ],
     },
 )

@@ -12,19 +12,19 @@
     </plugin>
     <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/>
     <scene>
-      <ambient>0.48 0.52 0.58 1</ambient>
-      <background>0.63 0.76 0.88 1</background>
+      <ambient>0.52 0.56 0.62 1</ambient>
+      <background>0.68 0.80 0.92 1</background>
       <shadows>false</shadows>
     </scene>
     <light name="sun" type="directional">
       <cast_shadows>false</cast_shadows>
-      <pose>0 0 24 0 0 0</pose>
-      <diffuse>0.94 0.88 0.75 1</diffuse>
-      <specular>0.28 0.27 0.24 1</specular>
-      <direction>-0.38 0.25 -0.89</direction>
+      <pose>0 0 28 0 0 0</pose>
+      <diffuse>0.96 0.91 0.78 1</diffuse>
+      <specular>0.32 0.30 0.26 1</specular>
+      <direction>-0.42 0.28 -0.86</direction>
     </light>
 
-    <!-- Local grayscale heightmap: low valley floor with smooth mountain shoulders. -->
+    <!-- Valley terrain with elevation variation -->
     <model name="valley_terrain">
       <static>true</static>
       <link name="terrain">
@@ -43,115 +43,282 @@
             <mesh><uri>worlds/showcase_terrain.stl</uri></mesh>
           </geometry>
           <material>
-            <ambient>0.36 0.31 0.22 1</ambient>
-            <diffuse>0.47 0.39 0.27 1</diffuse>
+            <ambient>0.38 0.33 0.24 1</ambient>
+            <diffuse>0.50 0.42 0.29 1</diffuse>
           </material>
         </visual>
       </link>
     </model>
 
-    <!-- The basin is recessed in the heightmap. Water is a visual-only overlay. -->
-    <model name="lake_visual">
+    <!-- LARGE LAKE/RESERVOIR with collision wall -->
+    <model name="lake_reservoir">
       <static>true</static>
-      <pose>12 -18 0.24 0 0 0</pose>
-      <link name="water_surface">
-        <visual name="lake">
-          <geometry><ellipsoid><radii>8.1 4.9 0.10</radii></ellipsoid></geometry>
+      <pose>12 -18 0.26 0 0 0</pose>
+      <link name="water">
+        <visual name="water_surface">
+          <geometry><ellipsoid><radii>11.0 6.5 0.12</radii></ellipsoid></geometry>
           <material>
-            <ambient>0.035 0.22 0.31 1</ambient>
-            <diffuse>0.055 0.38 0.52 1</diffuse>
-            <specular>0.55 0.68 0.78 1</specular>
-            <emissive>0.015 0.06 0.08 1</emissive>
+            <ambient>0.042 0.24 0.35 1</ambient>
+            <diffuse>0.065 0.42 0.58 1</diffuse>
+            <specular>0.60 0.72 0.82 1</specular>
+            <emissive>0.018 0.08 0.10 1</emissive>
           </material>
         </visual>
+        <!-- Collision wall prevents driving into lake -->
+        <collision name="lake_wall">
+          <pose>0 0 0.65 0 0 0</pose>
+          <geometry><cylinder><radius>10.8</radius><length>1.3</length></cylinder></geometry>
+        </collision>
       </link>
     </model>
 
+    <!-- WINDING CREEK connecting to lake -->
+    <model name="creek_section_1"><static>true</static><pose>8 -10 0.22 0 0 0</pose><link name="water">
+      <visual name="creek"><geometry><ellipsoid><radii>2.1 1.4 0.08</radii></ellipsoid></geometry>
+        <material><diffuse>0.055 0.38 0.52 1</diffuse><specular>0.55 0.68 0.78 1</specular></material>
+      </visual>
+    </link></model>
+    <model name="creek_section_2"><static>true</static><pose>5 -6.5 0.20 0 0 0.3</pose><link name="water">
+      <visual name="creek"><geometry><ellipsoid><radii>1.8 1.1 0.07</radii></ellipsoid></geometry>
+        <material><diffuse>0.055 0.38 0.52 1</diffuse><specular>0.55 0.68 0.78 1</specular></material>
+      </visual>
+    </link></model>
+    <model name="creek_section_3"><static>true</static><pose>2.5 -3.8 0.18 0 0 0.8</pose><link name="water">
+      <visual name="creek"><geometry><ellipsoid><radii>1.6 0.9 0.06</radii></ellipsoid></geometry>
+        <material><diffuse>0.055 0.38 0.52 1</diffuse><specular>0.55 0.68 0.78 1</specular></material>
+      </visual>
+    </link></model>
+    <model name="creek_section_4"><static>true</static><pose>0.5 -1.2 0.16 0 0 1.0</pose><link name="water">
+      <visual name="creek"><geometry><ellipsoid><radii>1.4 0.8 0.05</radii></ellipsoid></geometry>
+        <material><diffuse>0.055 0.38 0.52 1</diffuse><specular>0.55 0.68 0.78 1</specular></material>
+      </visual>
+    </link></model>
+
+    <!-- RIVER CROSSING (shallow, passable with care) -->
+    <model name="river_crossing"><static>true</static><pose>-2 1.5 0.14 0 0 0.2</pose><link name="water">
+      <visual name="shallow_water"><geometry><box><size>2.8 4.5 0.08</size></box></geometry>
+        <material><diffuse>0.12 0.45 0.58 0.7</diffuse><specular>0.48 0.62 0.72 1</specular></material>
+      </visual>
+    </link></model>
+
+    <!-- DENSE FOREST ZONE (northwest cluster) -->
+    <model name="forest_tree_01"><static>true</static><pose>-8 8 0 0 0 0</pose><link name="tree">
+      <collision name="trunk"><pose>0 0 1.2 0 0 0</pose><geometry><cylinder><radius>0.24</radius><length>2.4</length></cylinder></geometry></collision>
+      <visual name="bark"><pose>0 0 1.2 0 0 0</pose><geometry><cylinder><radius>0.24</radius><length>2.4</length></cylinder></geometry><material><diffuse>0.32 0.20 0.11 1</diffuse></material></visual>
+      <visual name="crown"><pose>0 0 3.1 0 0 0</pose><geometry><cone><radius>1.5</radius><length>3.4</length></cone></geometry><material><diffuse>0.12 0.35 0.16 1</diffuse></material></visual>
+    </link></model>
+    <model name="forest_tree_02"><static>true</static><pose>-6 10 0 0 0 0</pose><link name="tree">
+      <collision name="trunk"><pose>0 0 1.1 0 0 0</pose><geometry><cylinder><radius>0.21</radius><length>2.2</length></cylinder></geometry></collision>
+      <visual name="bark"><pose>0 0 1.1 0 0 0</pose><geometry><cylinder><radius>0.21</radius><length>2.2</length></cylinder></geometry><material><diffuse>0.31 0.19 0.10 1</diffuse></material></visual>
+      <visual name="crown"><pose>0 0 2.8 0 0 0</pose><geometry><cone><radius>1.4</radius><length>3.2</length></cone></geometry><material><diffuse>0.11 0.33 0.15 1</diffuse></material></visual>
+    </link></model>
+    <model name="forest_tree_03"><static>true</static><pose>-4.5 12 0 0 0 0</pose><link name="tree">
+      <collision name="trunk"><pose>0 0 1.3 0 0 0</pose><geometry><cylinder><radius>0.26</radius><length>2.6</length></cylinder></geometry></collision>
+      <visual name="bark"><pose>0 0 1.3 0 0 0</pose><geometry><cylinder><radius>0.26</radius><length>2.6</length></cylinder></geometry><material><diffuse>0.33 0.21 0.12 1</diffuse></material></visual>
+      <visual name="crown"><pose>0 0 3.2 0 0 0</pose><geometry><cone><radius>1.6</radius><length>3.5</length></cone></geometry><material><diffuse>0.13 0.36 0.17 1</diffuse></material></visual>
+    </link></model>
+    <model name="forest_tree_04"><static>true</static><pose>-10 11.5 0 0 0 0</pose><link name="tree">
+      <collision name="trunk"><pose>0 0 1.0 0 0 0</pose><geometry><cylinder><radius>0.20</radius><length>2.0</length></cylinder></geometry></collision>
+      <visual name="bark"><pose>0 0 1.0 0 0 0</pose><geometry><cylinder><radius>0.20</radius><length>2.0</length></cylinder></geometry><material><diffuse>0.30 0.18 0.09 1</diffuse></material></visual>
+      <visual name="crown"><pose>0 0 2.6 0 0 0</pose><geometry><cone><radius>1.3</radius><length>3.0</length></cone></geometry><material><diffuse>0.10 0.31 0.14 1</diffuse></material></visual>
+    </link></model>
+    <model name="forest_tree_05"><static>true</static><pose>-2 9.5 0 0 0 0</pose><link name="tree">
+      <collision name="trunk"><pose>0 0 1.15 0 0 0</pose><geometry><cylinder><radius>0.22</radius><length>2.3</length></cylinder></geometry></collision>
+      <visual name="bark"><pose>0 0 1.15 0 0 0</pose><geometry><cylinder><radius>0.22</radius><length>2.3</length></cylinder></geometry><material><diffuse>0.31 0.19 0.10 1</diffuse></material></visual>
+      <visual name="crown"><pose>0 0 2.9 0 0 0</pose><geometry><cone><radius>1.45</radius><length>3.3</length></cone></geometry><material><diffuse>0.11 0.32 0.15 1</diffuse></material></visual>
+    </link></model>
+    <model name="forest_tree_06"><static>true</static><pose>-12 9 0 0 0 0</pose><link name="tree">
+      <collision name="trunk"><pose>0 0 1.25 0 0 0</pose><geometry><cylinder><radius>0.25</radius><length>2.5</length></cylinder></geometry></collision>
+      <visual name="bark"><pose>0 0 1.25 0 0 0</pose><geometry><cylinder><radius>0.25</radius><length>2.5</length></cylinder></geometry><material><diffuse>0.32 0.20 0.11 1</diffuse></material></visual>
+      <visual name="crown"><pose>0 0 3.0 0 0 0</pose><geometry><cone><radius>1.55</radius><length>3.4</length></cone></geometry><material><diffuse>0.12 0.34 0.16 1</diffuse></material></visual>
+    </link></model>
+
+    <!-- Additional forest trees (spacing for navigation) -->
+    <model name="forest_tree_07"><static>true</static><pose>-7 14 0 0 0 0</pose><link name="tree">
+      <collision name="trunk"><pose>0 0 1.1 0 0 0</pose><geometry><cylinder><radius>0.21</radius><length>2.2</length></cylinder></geometry></collision>
+      <visual name="bark"><pose>0 0 1.1 0 0 0</pose><geometry><cylinder><radius>0.21</radius><length>2.2</length></cylinder></geometry><material><diffuse>0.31 0.19 0.10 1</diffuse></material></visual>
+      <visual name="crown"><pose>0 0 2.8 0 0 0</pose><geometry><cone><radius>1.4</radius><length>3.2</length></cone></geometry><material><diffuse>0.11 0.33 0.15 1</diffuse></material></visual>
+    </link></model>
+    <model name="forest_tree_08"><static>true</static><pose>-3 14.5 0 0 0 0</pose><link name="tree">
+      <collision name="trunk"><pose>0 0 1.0 0 0 0</pose><geometry><cylinder><radius>0.19</radius><length>2.0</length></cylinder></geometry></collision>
+      <visual name="bark"><pose>0 0 1.0 0 0 0</pose><geometry><cylinder><radius>0.19</radius><length>2.0</length></cylinder></geometry><material><diffuse>0.30 0.18 0.09 1</diffuse></material></visual>
+      <visual name="crown"><pose>0 0 2.6 0 0 0</pose><geometry><cone><radius>1.3</radius><length>3.0</length></cone></geometry><material><diffuse>0.10 0.31 0.14 1</diffuse></material></visual>
+    </link></model>
+
+    <!-- TRAIL CORRIDOR TREES (staggered to leave 4m path) -->
+    <model name="trail_tree_01"><static>true</static><pose>4 3.6 0 0 0 0</pose><link name="tree">
+      <collision name="trunk"><pose>0 0 1.05 0 0 0</pose><geometry><cylinder><radius>0.20</radius><length>2.1</length></cylinder></geometry></collision>
+      <visual name="bark"><pose>0 0 1.05 0 0 0</pose><geometry><cylinder><radius>0.20</radius><length>2.1</length></cylinder></geometry><material><diffuse>0.31 0.19 0.10 1</diffuse></material></visual>
+      <visual name="crown"><pose>0 0 2.7 0 0 0</pose><geometry><cone><radius>1.25</radius><length>2.8</length></cone></geometry><material><diffuse>0.11 0.32 0.15 1</diffuse></material></visual>
+    </link></model>
+    <model name="trail_tree_02"><static>true</static><pose>7 -3.8 0 0 0 0</pose><link name="tree">
+      <collision name="trunk"><pose>0 0 0.95 0 0 0</pose><geometry><cylinder><radius>0.18</radius><length>1.9</length></cylinder></geometry></collision>
+      <visual name="bark"><pose>0 0 0.95 0 0 0</pose><geometry><cylinder><radius>0.18</radius><length>1.9</length></cylinder></geometry><material><diffuse>0.30 0.18 0.09 1</diffuse></material></visual>
+      <visual name="crown"><pose>0 0 2.5 0 0 0</pose><geometry><cone><radius>1.15</radius><length>2.7</length></cone></geometry><material><diffuse>0.10 0.30 0.14 1</diffuse></material></visual>
+    </link></model>
+    <model name="trail_tree_03"><static>true</static><pose>11 4.3 0 0 0 0</pose><link name="tree">
+      <collision name="trunk"><pose>0 0 1.2 0 0 0</pose><geometry><cylinder><radius>0.23</radius><length>2.4</length></cylinder></geometry></collision>
+      <visual name="bark"><pose>0 0 1.2 0 0 0</pose><geometry><cylinder><radius>0.23</radius><length>2.4</length></cylinder></geometry><material><diffuse>0.32 0.20 0.11 1</diffuse></material></visual>
+      <visual name="crown"><pose>0 0 2.9 0 0 0</pose><geometry><cone><radius>1.35</radius><length>3.1</length></cone></geometry><material><diffuse>0.12 0.33 0.15 1</diffuse></material></visual>
+    </link></model>
+    <model name="trail_tree_04"><static>true</static><pose>14 -4.2 0 0 0 0</pose><link name="tree">
+      <collision name="trunk"><pose>0 0 1.0 0 0 0</pose><geometry><cylinder><radius>0.19</radius><length>2.0</length></cylinder></geometry></collision>
+      <visual name="bark"><pose>0 0 1.0 0 0 0</pose><geometry><cylinder><radius>0.19</radius><length>2.0</length></cylinder></geometry><material><diffuse>0.31 0.19 0.10 1</diffuse></material></visual>
+      <visual name="crown"><pose>0 0 2.6 0 0 0</pose><geometry><cone><radius>1.2</radius><length>2.8</length></cone></geometry><material><diffuse>0.10 0.29 0.14 1</diffuse></material></visual>
+    </link></model>
+    <model name="trail_tree_05"><static>true</static><pose>18 3.4 0 0 0 0</pose><link name="tree">
+      <collision name="trunk"><pose>0 0 1.1 0 0 0</pose><geometry><cylinder><radius>0.21</radius><length>2.2</length></cylinder></geometry></collision>
+      <visual name="bark"><pose>0 0 1.1 0 0 0</pose><geometry><cylinder><radius>0.21</radius><length>2.2</length></cylinder></geometry><material><diffuse>0.31 0.19 0.10 1</diffuse></material></visual>
+      <visual name="crown"><pose>0 0 2.8 0 0 0</pose><geometry><cone><radius>1.35</radius><length>3.0</length></cone></geometry><material><diffuse>0.12 0.34 0.16 1</diffuse></material></visual>
+    </link></model>
+    <model name="trail_tree_06"><static>true</static><pose>22 -3.7 0 0 0 0</pose><link name="tree">
+      <collision name="trunk"><pose>0 0 1.05 0 0 0</pose><geometry><cylinder><radius>0.20</radius><length>2.1</length></cylinder></geometry></collision>
+      <visual name="bark"><pose>0 0 1.05 0 0 0</pose><geometry><cylinder><radius>0.20</radius><length>2.1</length></cylinder></geometry><material><diffuse>0.31 0.18 0.09 1</diffuse></material></visual>
+      <visual name="crown"><pose>0 0 2.7 0 0 0</pose><geometry><cone><radius>1.35</radius><length>3.0</length></cone></geometry><material><diffuse>0.10 0.30 0.13 1</diffuse></material></visual>
+    </link></model>
+    <model name="trail_tree_07"><static>true</static><pose>27 4.2 0 0 0 0</pose><link name="tree">
+      <collision name="trunk"><pose>0 0 1.2 0 0 0</pose><geometry><cylinder><radius>0.23</radius><length>2.4</length></cylinder></geometry></collision>
+      <visual name="bark"><pose>0 0 1.2 0 0 0</pose><geometry><cylinder><radius>0.23</radius><length>2.4</length></cylinder></geometry><material><diffuse>0.31 0.19 0.10 1</diffuse></material></visual>
+      <visual name="crown"><pose>0 0 2.9 0 0 0</pose><geometry><cone><radius>1.5</radius><length>3.2</length></cone></geometry><material><diffuse>0.11 0.32 0.15 1</diffuse></material></visual>
+    </link></model>
+    <model name="trail_tree_08"><static>true</static><pose>31 -4.1 0 0 0 0</pose><link name="tree">
+      <collision name="trunk"><pose>0 0 0.95 0 0 0</pose><geometry><cylinder><radius>0.18</radius><length>1.9</length></cylinder></geometry></collision>
+      <visual name="bark"><pose>0 0 0.95 0 0 0</pose><geometry><cylinder><radius>0.18</radius><length>1.9</length></cylinder></geometry><material><diffuse>0.31 0.19 0.10 1</diffuse></material></visual>
+      <visual name="crown"><pose>0 0 2.55 0 0 0</pose><geometry><cone><radius>1.2</radius><length>2.8</length></cone></geometry><material><diffuse>0.11 0.32 0.15 1</diffuse></material></visual>
+    </link></model>
+
+    <!-- OPEN SCRUB scattered small vegetation -->
+    <model name="scrub_bush_01"><static>true</static><pose>3 -8 0 0 0 0</pose><link name="bush">
+      <collision name="bush_col"><pose>0 0 0.25 0 0 0</pose><geometry><cylinder><radius>0.32</radius><length>0.50</length></cylinder></geometry></collision>
+      <visual name="bush_vis"><pose>0 0 0.25 0 0 0</pose><geometry><cylinder><radius>0.32</radius><length>0.50</length></cylinder></geometry><material><diffuse>0.22 0.38 0.18 1</diffuse></material></visual>
+    </link></model>
+    <model name="scrub_bush_02"><static>true</static><pose>6.5 -11 0 0 0 0</pose><link name="bush">
+      <collision name="bush_col"><pose>0 0 0.22 0 0 0</pose><geometry><cylinder><radius>0.28</radius><length>0.44</length></cylinder></geometry></collision>
+      <visual name="bush_vis"><pose>0 0 0.22 0 0 0</pose><geometry><cylinder><radius>0.28</radius><length>0.44</length></cylinder></geometry><material><diffuse>0.20 0.36 0.16 1</diffuse></material></visual>
+    </link></model>
+    <model name="scrub_bush_03"><static>true</static><pose>10 -8.5 0 0 0 0</pose><link name="bush">
+      <collision name="bush_col"><pose>0 0 0.20 0 0 0</pose><geometry><cylinder><radius>0.26</radius><length>0.40</length></cylinder></geometry></collision>
+      <visual name="bush_vis"><pose>0 0 0.20 0 0 0</pose><geometry><cylinder><radius>0.26</radius><length>0.40</length></cylinder></geometry><material><diffuse>0.24 0.40 0.20 1</diffuse></material></visual>
+    </link></model>
+    <model name="scrub_bush_04"><static>true</static><pose>1.5 -12 0 0 0 0</pose><link name="bush">
+      <collision name="bush_col"><pose>0 0 0.24 0 0 0</pose><geometry><cylinder><radius>0.30</radius><length>0.48</length></cylinder></geometry></collision>
+      <visual name="bush_vis"><pose>0 0 0.24 0 0 0</pose><geometry><cylinder><radius>0.30</radius><length>0.48</length></cylinder></geometry><material><diffuse>0.21 0.37 0.17 1</diffuse></material></visual>
+    </link></model>
+    <model name="scrub_bush_05"><static>true</static><pose>-1 -9.5 0 0 0 0</pose><link name="bush">
+      <collision name="bush_col"><pose>0 0 0.21 0 0 0</pose><geometry><cylinder><radius>0.27</radius><length>0.42</length></cylinder></geometry></collision>
+      <visual name="bush_vis"><pose>0 0 0.21 0 0 0</pose><geometry><cylinder><radius>0.27</radius><length>0.42</length></cylinder></geometry><material><diffuse>0.23 0.39 0.19 1</diffuse></material></visual>
+    </link></model>
+
+    <!-- BOULDER FIELD (east side, staggered for navigation) -->
+    <model name="boulder_01"><static>true</static><pose>20 8 0.48 0.15 0.2 0</pose><link name="rock">
+      <collision name="rock_col"><geometry><sphere><radius>0.58</radius></sphere></geometry></collision>
+      <visual name="rock_vis"><geometry><sphere><radius>0.58</radius></sphere></geometry><material><diffuse>0.36 0.38 0.39 1</diffuse></material></visual>
+    </link></model>
+    <model name="boulder_02"><static>true</static><pose>22 10 0.40 0.2 0.3 0.2</pose><link name="rock">
+      <collision name="rock_col"><geometry><sphere><radius>0.48</radius></sphere></geometry></collision>
+      <visual name="rock_vis"><geometry><sphere><radius>0.48</radius></sphere></geometry><material><diffuse>0.38 0.37 0.35 1</diffuse></material></visual>
+    </link></model>
+    <model name="boulder_03"><static>true</static><pose>24 8.5 0.52 0.1 0.4 0.3</pose><link name="rock">
+      <collision name="rock_col"><geometry><sphere><radius>0.62</radius></sphere></geometry></collision>
+      <visual name="rock_vis"><geometry><sphere><radius>0.62</radius></sphere></geometry><material><diffuse>0.33 0.35 0.37 1</diffuse></material></visual>
+    </link></model>
+    <model name="boulder_04"><static>true</static><pose>26 11 0.35 0.3 0.2 0.1</pose><link name="rock">
+      <collision name="rock_col"><geometry><sphere><radius>0.42</radius></sphere></geometry></collision>
+      <visual name="rock_vis"><geometry><sphere><radius>0.42</radius></sphere></geometry><material><diffuse>0.40 0.39 0.36 1</diffuse></material></visual>
+    </link></model>
+    <model name="boulder_05"><static>true</static><pose>23 12.5 0.45 0.2 0.3 0.4</pose><link name="rock">
+      <collision name="rock_col"><geometry><sphere><radius>0.54</radius></sphere></geometry></collision>
+      <visual name="rock_vis"><geometry><sphere><radius>0.54</radius></sphere></geometry><material><diffuse>0.34 0.36 0.38 1</diffuse></material></visual>
+    </link></model>
+    <model name="boulder_06"><static>true</static><pose>27 9.5 0.32 0.25 0.15 0.2</pose><link name="rock">
+      <collision name="rock_col"><geometry><sphere><radius>0.38</radius></sphere></geometry></collision>
+      <visual name="rock_vis"><geometry><sphere><radius>0.38</radius></sphere></geometry><material><diffuse>0.39 0.38 0.36 1</diffuse></material></visual>
+    </link></model>
+    <model name="boulder_07"><static>true</static><pose>25 6.5 0.38 0.1 0.3 0.5</pose><link name="rock">
+      <collision name="rock_col"><geometry><sphere><radius>0.46</radius></sphere></geometry></collision>
+      <visual name="rock_vis"><geometry><sphere><radius>0.46</radius></sphere></geometry><material><diffuse>0.35 0.37 0.38 1</diffuse></material></visual>
+    </link></model>
+    <model name="boulder_08"><static>true</static><pose>21 6 0.42 0.2 0.2 0.1</pose><link name="rock">
+      <collision name="rock_col"><geometry><sphere><radius>0.50</radius></sphere></geometry></collision>
+      <visual name="rock_vis"><geometry><sphere><radius>0.50</radius></sphere></geometry><material><diffuse>0.37 0.38 0.37 1</diffuse></material></visual>
+    </link></model>
+    <model name="boulder_09"><static>true</static><pose>28 13 0.36 0.15 0.25 0.3</pose><link name="rock">
+      <collision name="rock_col"><geometry><sphere><radius>0.44</radius></sphere></geometry></collision>
+      <visual name="rock_vis"><geometry><sphere><radius>0.44</radius></sphere></geometry><material><diffuse>0.36 0.37 0.36 1</diffuse></material></visual>
+    </link></model>
+    <model name="boulder_10"><static>true</static><pose>19 10.5 0.30 0.2 0.1 0.2</pose><link name="rock">
+      <collision name="rock_col"><geometry><sphere><radius>0.36</radius></sphere></geometry></collision>
+      <visual name="rock_vis"><geometry><sphere><radius>0.36</radius></sphere></geometry><material><diffuse>0.41 0.40 0.38 1</diffuse></material></visual>
+    </link></model>
+
+    <!-- ELEVATED ROCKY SLOPE scattered rocks (on incline x=15-35m, y=5-20m) -->
+    <model name="slope_rock_01"><static>true</static><pose>18 12 1.85 0.3 0.4 0</pose><link name="rock">
+      <collision name="rock_col"><geometry><sphere><radius>0.42</radius></sphere></geometry></collision>
+      <visual name="rock_vis"><geometry><sphere><radius>0.42</radius></sphere></geometry><material><diffuse>0.38 0.39 0.38 1</diffuse></material></visual>
+    </link></model>
+    <model name="slope_rock_02"><static>true</static><pose>22 10 2.25 0.2 0.3 0.1</pose><link name="rock">
+      <collision name="rock_col"><geometry><sphere><radius>0.48</radius></sphere></geometry></collision>
+      <visual name="rock_vis"><geometry><sphere><radius>0.48</radius></sphere></geometry><material><diffuse>0.36 0.37 0.37 1</diffuse></material></visual>
+    </link></model>
+    <model name="slope_rock_03"><static>true</static><pose>27 14 2.70 0.25 0.2 0.2</pose><link name="rock">
+      <collision name="rock_col"><geometry><sphere><radius>0.45</radius></sphere></geometry></collision>
+      <visual name="rock_vis"><geometry><sphere><radius>0.45</radius></sphere></geometry><material><diffuse>0.37 0.38 0.36 1</diffuse></material></visual>
+    </link></model>
+    <model name="slope_rock_04"><static>true</static><pose>31 11 3.05 0.15 0.3 0.3</pose><link name="rock">
+      <collision name="rock_col"><geometry><sphere><radius>0.40</radius></sphere></geometry></collision>
+      <visual name="rock_vis"><geometry><sphere><radius>0.40</radius></sphere></geometry><material><diffuse>0.39 0.38 0.37 1</diffuse></material></visual>
+    </link></model>
+    <model name="slope_rock_05"><static>true</static><pose>24 8 2.50 0.2 0.35 0.15</pose><link name="rock">
+      <collision name="rock_col"><geometry><sphere><radius>0.38</radius></sphere></geometry></collision>
+      <visual name="rock_vis"><geometry><sphere><radius>0.38</radius></sphere></geometry><material><diffuse>0.40 0.39 0.38 1</diffuse></material></visual>
+    </link></model>
+
+    <!-- FALLEN TIMBER / LOG MAZE -->
+    <model name="fallen_log_01"><static>true</static><pose>11.5 1.4 0.28 1.570796 0 0</pose><link name="log">
+      <collision name="log_col"><geometry><cylinder><radius>0.26</radius><length>3.0</length></cylinder></geometry></collision>
+      <visual name="bark"><geometry><cylinder><radius>0.26</radius><length>3.0</length></cylinder></geometry><material><diffuse>0.29 0.17 0.09 1</diffuse></material></visual>
+    </link></model>
+    <model name="fallen_log_02"><static>true</static><pose>9 -1.2 0.24 1.570796 0.1 0.3</pose><link name="log">
+      <collision name="log_col"><geometry><cylinder><radius>0.22</radius><length>2.5</length></cylinder></geometry></collision>
+      <visual name="bark"><geometry><cylinder><radius>0.22</radius><length>2.5</length></cylinder></geometry><material><diffuse>0.28 0.16 0.08 1</diffuse></material></visual>
+    </link></model>
+    <model name="fallen_log_03"><static>true</static><pose>16 2.2 0.30 1.570796 0 0.8</pose><link name="log">
+      <collision name="log_col"><geometry><cylinder><radius>0.28</radius><length>3.2</length></cylinder></geometry></collision>
+      <visual name="bark"><geometry><cylinder><radius>0.28</radius><length>3.2</length></cylinder></geometry><material><diffuse>0.30 0.18 0.10 1</diffuse></material></visual>
+    </link></model>
+    <model name="fallen_log_04"><static>true</static><pose>-5 4.5 0.26 0 1.570796 0.5</pose><link name="log">
+      <collision name="log_col"><geometry><cylinder><radius>0.24</radius><length>2.8</length></cylinder></geometry></collision>
+      <visual name="bark"><geometry><cylinder><radius>0.24</radius><length>2.8</length></cylinder></geometry><material><diffuse>0.27 0.15 0.07 1</diffuse></material></visual>
+    </link></model>
+    <model name="fallen_log_05"><static>true</static><pose>6 6.5 0.25 1.570796 0.05 1.2</pose><link name="log">
+      <collision name="log_col"><geometry><cylinder><radius>0.23</radius><length>2.6</length></cylinder></geometry></collision>
+      <visual name="bark"><geometry><cylinder><radius>0.23</radius><length>2.6</length></cylinder></geometry><material><diffuse>0.28 0.16 0.08 1</diffuse></material></visual>
+    </link></model>
+    <model name="fallen_log_06"><static>true</static><pose>13 -8 0.27 1.570796 0 0.4</pose><link name="log">
+      <collision name="log_col"><geometry><cylinder><radius>0.25</radius><length>2.9</length></cylinder></geometry></collision>
+      <visual name="bark"><geometry><cylinder><radius>0.25</radius><length>2.9</length></cylinder></geometry><material><diffuse>0.29 0.17 0.09 1</diffuse></material></visual>
+    </link></model>
+
+    <!-- Trail-side rocks and additional obstacles -->
+    <model name="granite_boulder_01"><static>true</static><pose>5.2 1.7 0.42 0.1 0.2 0</pose><link name="stone">
+      <collision name="stone_collision"><geometry><sphere><radius>0.50</radius></sphere></geometry></collision>
+      <visual name="stone_visual"><geometry><sphere><radius>0.50</radius></sphere></geometry><material><diffuse>0.34 0.36 0.37 1</diffuse></material></visual>
+    </link></model>
+    <model name="granite_boulder_02"><static>true</static><pose>8.0 -2.6 0.32 0.2 0.3 0.2</pose><link name="stone">
+      <collision name="stone_collision"><geometry><sphere><radius>0.38</radius></sphere></geometry></collision>
+      <visual name="stone_visual"><geometry><sphere><radius>0.38</radius></sphere></geometry><material><diffuse>0.40 0.39 0.36 1</diffuse></material></visual>
+    </link></model>
+    <model name="granite_boulder_03"><static>true</static><pose>17 1.9 0.44 0.1 0.4 0.2</pose><link name="stone">
+      <collision name="stone_collision"><geometry><sphere><radius>0.52</radius></sphere></geometry></collision>
+      <visual name="stone_visual"><geometry><sphere><radius>0.52</radius></sphere></geometry><material><diffuse>0.31 0.33 0.35 1</diffuse></material></visual>
+    </link></model>
+
+    <!-- Rover spawn point -->
     <include>
       <uri>models/sih_ugv/sih_ugv.sdf</uri>
       <name>sih_ugv</name>
       <pose>0 0 0 0 0 0</pose>
     </include>
 
-    <!-- Staggered conifers leave a central four-meter travel corridor. -->
-    <model name="pine_01"><static>true</static><pose>4 3.4 0 0 0 0</pose><link name="trunk">
-      <collision name="trunk_collision"><pose>0 0 1.05 0 0 0</pose><geometry><cylinder><radius>0.20</radius><length>2.1</length></cylinder></geometry></collision>
-      <visual name="trunk_visual"><pose>0 0 1.05 0 0 0</pose><geometry><cylinder><radius>0.20</radius><length>2.1</length></cylinder></geometry><material><diffuse>0.31 0.19 0.10 1</diffuse></material></visual>
-      <visual name="crown_lower"><pose>0 0 2.45 0 0 0</pose><geometry><cone><radius>1.15</radius><length>2.4</length></cone></geometry><material><diffuse>0.11 0.31 0.15 1</diffuse></material></visual>
-      <visual name="crown_upper"><pose>0 0 3.35 0 0 0</pose><geometry><cone><radius>0.82</radius><length>2.1</length></cone></geometry><material><diffuse>0.16 0.39 0.19 1</diffuse></material></visual>
-    </link></model>
-    <model name="pine_02"><static>true</static><pose>7 -3.7 0 0 0 0</pose><link name="trunk">
-      <collision name="trunk_collision"><pose>0 0 0.9 0 0 0</pose><geometry><cylinder><radius>0.17</radius><length>1.8</length></cylinder></geometry></collision>
-      <visual name="trunk_visual"><pose>0 0 0.9 0 0 0</pose><geometry><cylinder><radius>0.17</radius><length>1.8</length></cylinder></geometry><material><diffuse>0.30 0.18 0.09 1</diffuse></material></visual>
-      <visual name="crown"><pose>0 0 2.4 0 0 0</pose><geometry><cone><radius>1.1</radius><length>2.7</length></cone></geometry><material><diffuse>0.10 0.30 0.14 1</diffuse></material></visual>
-    </link></model>
-    <model name="pine_03"><static>true</static><pose>11 4.2 0 0 0 0</pose><link name="trunk">
-      <collision name="trunk_collision"><pose>0 0 1.2 0 0 0</pose><geometry><cylinder><radius>0.23</radius><length>2.4</length></cylinder></geometry></collision>
-      <visual name="trunk_visual"><pose>0 0 1.2 0 0 0</pose><geometry><cylinder><radius>0.23</radius><length>2.4</length></cylinder></geometry><material><diffuse>0.32 0.20 0.11 1</diffuse></material></visual>
-      <visual name="crown"><pose>0 0 2.9 0 0 0</pose><geometry><cone><radius>1.35</radius><length>3.1</length></cone></geometry><material><diffuse>0.12 0.33 0.15 1</diffuse></material></visual>
-    </link></model>
-    <model name="pine_04"><static>true</static><pose>14 -4.0 0 0 0 0</pose><link name="trunk">
-      <collision name="trunk_collision"><pose>0 0 0.95 0 0 0</pose><geometry><cylinder><radius>0.18</radius><length>1.9</length></cylinder></geometry></collision>
-      <visual name="trunk_visual"><pose>0 0 0.95 0 0 0</pose><geometry><cylinder><radius>0.18</radius><length>1.9</length></cylinder></geometry><material><diffuse>0.31 0.19 0.10 1</diffuse></material></visual>
-      <visual name="crown"><pose>0 0 2.5 0 0 0</pose><geometry><cone><radius>1.18</radius><length>2.8</length></cone></geometry><material><diffuse>0.10 0.29 0.14 1</diffuse></material></visual>
-    </link></model>
-    <model name="pine_05"><static>true</static><pose>18 3.3 0 0 0 0</pose><link name="trunk">
-      <collision name="trunk_collision"><pose>0 0 1.0 0 0 0</pose><geometry><cylinder><radius>0.19</radius><length>2.0</length></cylinder></geometry></collision>
-      <visual name="trunk_visual"><pose>0 0 1.0 0 0 0</pose><geometry><cylinder><radius>0.19</radius><length>2.0</length></cylinder></geometry><material><diffuse>0.30 0.18 0.09 1</diffuse></material></visual>
-      <visual name="crown"><pose>0 0 2.7 0 0 0</pose><geometry><cone><radius>1.3</radius><length>3.0</length></cone></geometry><material><diffuse>0.12 0.34 0.16 1</diffuse></material></visual>
-    </link></model>
-    <model name="pine_06"><static>true</static><pose>22 -3.5 0 0 0 0</pose><link name="trunk">
-      <collision name="trunk_collision"><pose>0 0 1.05 0 0 0</pose><geometry><cylinder><radius>0.20</radius><length>2.1</length></cylinder></geometry></collision>
-      <visual name="trunk_visual"><pose>0 0 1.05 0 0 0</pose><geometry><cylinder><radius>0.20</radius><length>2.1</length></cylinder></geometry><material><diffuse>0.31 0.18 0.09 1</diffuse></material></visual>
-      <visual name="crown"><pose>0 0 2.7 0 0 0</pose><geometry><cone><radius>1.35</radius><length>3.0</length></cone></geometry><material><diffuse>0.10 0.30 0.13 1</diffuse></material></visual>
-    </link></model>
-    <model name="pine_07"><static>true</static><pose>27 4.1 0 0 0 0</pose><link name="trunk">
-      <collision name="trunk_collision"><pose>0 0 1.2 0 0 0</pose><geometry><cylinder><radius>0.23</radius><length>2.4</length></cylinder></geometry></collision>
-      <visual name="trunk_visual"><pose>0 0 1.2 0 0 0</pose><geometry><cylinder><radius>0.23</radius><length>2.4</length></cylinder></geometry><material><diffuse>0.31 0.19 0.10 1</diffuse></material></visual>
-      <visual name="crown"><pose>0 0 2.9 0 0 0</pose><geometry><cone><radius>1.5</radius><length>3.2</length></cone></geometry><material><diffuse>0.11 0.32 0.15 1</diffuse></material></visual>
-    </link></model>
-    <model name="pine_08"><static>true</static><pose>31 -4.0 0 0 0 0</pose><link name="trunk">
-      <collision name="trunk_collision"><pose>0 0 0.95 0 0 0</pose><geometry><cylinder><radius>0.18</radius><length>1.9</length></cylinder></geometry></collision>
-      <visual name="trunk_visual"><pose>0 0 0.95 0 0 0</pose><geometry><cylinder><radius>0.18</radius><length>1.9</length></cylinder></geometry><material><diffuse>0.31 0.19 0.10 1</diffuse></material></visual>
-      <visual name="crown"><pose>0 0 2.55 0 0 0</pose><geometry><cone><radius>1.2</radius><length>2.8</length></cone></geometry><material><diffuse>0.11 0.32 0.15 1</diffuse></material></visual>
-    </link></model>
-
-    <!-- Rounded rocks cluster beside the route, with one detectable corridor obstacle. -->
-    <model name="granite_boulder_01"><static>true</static><pose>5.2 1.65 0.40 0.1 0.2 0</pose><link name="stone">
-      <collision name="stone_collision"><geometry><sphere><radius>0.48</radius></sphere></geometry></collision>
-      <visual name="stone_visual"><geometry><sphere><radius>0.48</radius></sphere></geometry><material><diffuse>0.34 0.36 0.37 1</diffuse></material></visual>
-    </link></model>
-    <model name="granite_boulder_02"><static>true</static><pose>8.0 -2.5 0.30 0.2 0.3 0.2</pose><link name="stone">
-      <collision name="stone_collision"><geometry><sphere><radius>0.34</radius></sphere></geometry></collision>
-      <visual name="stone_visual"><geometry><sphere><radius>0.34</radius></sphere></geometry><material><diffuse>0.40 0.39 0.36 1</diffuse></material></visual>
-    </link></model>
-    <model name="granite_boulder_03"><static>true</static><pose>17 1.9 0.42 0.1 0.4 0.2</pose><link name="stone">
-      <collision name="stone_collision"><geometry><sphere><radius>0.50</radius></sphere></geometry></collision>
-      <visual name="stone_visual"><geometry><sphere><radius>0.50</radius></sphere></geometry><material><diffuse>0.31 0.33 0.35 1</diffuse></material></visual>
-    </link></model>
-
-    <!-- Fallen timber partially intrudes into the path but leaves room to steer around it. -->
-    <model name="fallen_log"><static>true</static><pose>11.5 1.35 0.27 1.570796 0 0</pose><link name="log">
-      <collision name="log_collision"><geometry><cylinder><radius>0.25</radius><length>2.8</length></cylinder></geometry></collision>
-      <visual name="bark"><geometry><cylinder><radius>0.25</radius><length>2.8</length></cylinder></geometry><material><diffuse>0.28 0.16 0.08 1</diffuse></material></visual>
-      <visual name="cut_end"><pose>0 0 1.4 0 0 0</pose><geometry><cylinder><radius>0.23</radius><length>0.02</length></cylinder></geometry><material><diffuse>0.62 0.43 0.24 1</diffuse></material></visual>
-    </link></model>
-
-    <!-- Scattered out-of-corridor boulders and saplings add depth without closing the route. -->
-    <model name="rock_cluster_a"><static>true</static><pose>3.5 6.0 0.3 0 0 0</pose><link name="rocks">
-      <collision name="c1"><pose>0 0 0.2 0 0 0</pose><geometry><sphere><radius>0.35</radius></sphere></geometry></collision>
-      <visual name="v1"><pose>0 0 0.2 0 0 0</pose><geometry><sphere><radius>0.35</radius></sphere></geometry><material><diffuse>0.38 0.39 0.37 1</diffuse></material></visual>
-      <visual name="v2"><pose>0.5 0.2 0.15 0 0 0</pose><geometry><sphere><radius>0.25</radius></sphere></geometry><material><diffuse>0.32 0.35 0.36 1</diffuse></material></visual>
-    </link></model>
-    <model name="pine_09"><static>true</static><pose>-5 5.3 0 0 0 0</pose><link name="tree">
-      <collision name="trunk"><pose>0 0 0.85 0 0 0</pose><geometry><cylinder><radius>0.17</radius><length>1.7</length></cylinder></geometry></collision>
-      <visual name="bark"><pose>0 0 0.85 0 0 0</pose><geometry><cylinder><radius>0.17</radius><length>1.7</length></cylinder></geometry><material><diffuse>0.31 0.19 0.10 1</diffuse></material></visual>
-      <visual name="leaves"><pose>0 0 2.3 0 0 0</pose><geometry><cone><radius>1.05</radius><length>2.6</length></cone></geometry><material><diffuse>0.11 0.32 0.15 1</diffuse></material></visual>
-    </link></model>
-    <model name="pine_10"><static>true</static><pose>-2 -5.6 0 0 0 0</pose><link name="tree">
-      <collision name="trunk"><pose>0 0 0.95 0 0 0</pose><geometry><cylinder><radius>0.18</radius><length>1.9</length></cylinder></geometry></collision>
-      <visual name="bark"><pose>0 0 0.95 0 0 0</pose><geometry><cylinder><radius>0.18</radius><length>1.9</length></cylinder></geometry><material><diffuse>0.31 0.19 0.10 1</diffuse></material></visual>
-      <visual name="leaves"><pose>0 0 2.5 0 0 0</pose><geometry><cone><radius>1.2</radius><length>2.8</length></cone></geometry><material><diffuse>0.10 0.30 0.14 1</diffuse></material></visual>
-    </link></model>
   </world>
 </sdf>

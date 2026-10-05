@@ -4,7 +4,7 @@
   <version>0.0.0</version>
   <description>
     Sensor validity, freshness, depth quality, and synchronization
-    monitoring for SIH26126.
+    monitoring for DRISTHI.
   </description>
   <maintainer email="venom@todo.todo">venom</maintainer>
   <license>Apache-2.0</license>
@@ -16,6 +16,8 @@
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>sih26126_msgs</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>visualization_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_pep257</test_depend>

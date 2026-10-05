@@ -15,7 +15,7 @@ setup(
     zip_safe=True,
     maintainer='venom',
     maintainer_email='venom@todo.todo',
-    description='Terrain-aware advisory planner baseline for SIH26126.',
+    description='Terrain-aware advisory planner baseline for DRISTHI.',
     license='Apache-2.0',
     extras_require={
         'test': [

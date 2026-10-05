@@ -3,13 +3,19 @@
 <package format="3">
   <name>sih26126_localization</name>
   <version>0.0.0</version>
-  <description>Metric RGB-D visual odometry baseline for SIH26126.</description>
+  <description>Metric RGB-D visual odometry baseline for DRISTHI.</description>
   <maintainer email="venom@todo.todo">venom</maintainer>
   <license>Apache-2.0</license>
 
   <exec_depend>rclpy</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>tf2_geometry_msgs</exec_depend>
+  <exec_depend>slam_toolbox</exec_depend>
+  <exec_depend>robot_localization</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-opencv</exec_depend>
 

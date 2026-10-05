@@ -27,7 +27,7 @@ setup(
     zip_safe=True,
     maintainer='venom',
     maintainer_email='venom@todo.todo',
-    description='Camera-based traversability estimation for SIH26126.',
+    description='Camera-based traversability estimation for DRISTHI.',
     license='Apache-2.0',
     entry_points={
         'console_scripts': [

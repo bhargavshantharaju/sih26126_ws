@@ -101,7 +101,7 @@ class PerceptionBaseline(Node):
                 f'First perception frame: {msg.width}x{msg.height}'
             )
 
-        if self.frame_count % 30 == 0:
+        if self.frame_count % 300 == 0:
             traversable_ratio = float(np.mean(traversable))
 
             self.get_logger().info(

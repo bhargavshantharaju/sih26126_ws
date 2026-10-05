@@ -12,6 +12,8 @@ import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from sensor_msgs.msg import CameraInfo, Image, PointCloud2
+from sensor_msgs.msg import LaserScan
+from sih26126_msgs.msg import AutonomyMode, PlannerRisk
 from std_msgs.msg import Float32, String
 
 
@@ -311,6 +313,27 @@ def obstacle_clearance_score(
     )
 
 
+def scan_corridor_clearance(scan: Optional[LaserScan], candidate_angle: float,
+                            half_width: float = 0.42,
+                            x_min: float = 0.20,
+                            x_max: float = 3.0) -> float:
+    """Return nearest live LiDAR return in a forward candidate corridor."""
+    if scan is None or not scan.ranges or scan.angle_increment == 0.0:
+        return float('inf')
+    distances = []
+    for index, raw_range in enumerate(scan.ranges):
+        distance = float(raw_range)
+        angle = scan.angle_min + index * scan.angle_increment
+        if (not math.isfinite(distance) or distance < max(scan.range_min, x_min)
+                or distance > min(scan.range_max, x_max)
+                or abs(wrap_angle(angle - candidate_angle)) > half_width):
+            continue
+        forward_distance = distance * math.cos(angle)
+        if x_min <= forward_distance <= x_max:
+            distances.append(distance)
+    return min(distances) if distances else float('inf')
+
+
 def obstacle_return_evidence(points: Optional[np.ndarray], selected_angle: float):
     """Summarize actual depth returns in the forward field and selected corridor."""
     if points is None or not np.asarray(points).size:
@@ -521,6 +544,7 @@ class LocalPathSelector(Node):
 
         self.score_map: Optional[Image] = None
         self.pointcloud: Optional[PointCloud2] = None
+        self.scan: Optional[LaserScan] = None
         self.camera_info: Optional[CameraInfo] = None
         self.odom: Optional[Odometry] = None
         self.global_path: Optional[Path] = None
@@ -531,7 +555,15 @@ class LocalPathSelector(Node):
         self.previous_angle = 0.0
         self.score_map_received_at = None
         self.pointcloud_received_at = None
+        self.scan_received_at = None
         self.odom_received_at = None
+
+        # Dynamic risk and autonomy mode integration
+        self.dynamic_risk: float = 0.0
+        self.dynamic_risk_received_at: Optional[float] = None
+        self.autonomy_mode: str = 'FULL_AUTONOMY'
+        self.autonomy_mode_received_at: Optional[float] = None
+        self.localization_confidence: float = 1.0
 
         # Keep edge candidates inside the depth camera's ~±30° horizontal
         # field of view so the rover can steer around obstacles that fill the
@@ -558,6 +590,8 @@ class LocalPathSelector(Node):
             self.pointcloud_callback,
             10,
         )
+        self.scan_sub = self.create_subscription(
+            LaserScan, '/scan', self.scan_callback, 10)
         self.info_sub = self.create_subscription(
             CameraInfo,
             '/camera_info',
@@ -592,6 +626,25 @@ class LocalPathSelector(Node):
             String, '/mission/state', self.mission_callback, 10)
         self.home_sub = self.create_subscription(
             PoseStamped, '/mission/home_pose', self.home_callback, 10)
+
+        self.dynamic_risk_sub = self.create_subscription(
+            Float32,
+            '/obstacles/dynamic_risk',
+            self.dynamic_risk_callback,
+            10,
+        )
+        self.autonomy_mode_sub = self.create_subscription(
+            AutonomyMode,
+            '/autonomy/mode',
+            self.autonomy_mode_callback,
+            10,
+        )
+        self.localization_confidence_sub = self.create_subscription(
+            Float32,
+            '/localization/confidence',
+            self.localization_confidence_callback,
+            10,
+        )
 
         self.local_path_pub = self.create_publisher(
             Path,
@@ -632,6 +685,11 @@ class LocalPathSelector(Node):
             Float32, '/planner/raw_obstacle_clearance', 10)
         self.obstacle_evidence_pub = self.create_publisher(
             String, '/planner/obstacle_evidence', 10)
+        self.risk_assessment_pub = self.create_publisher(
+            PlannerRisk,
+            '/planner/risk_assessment',
+            10,
+        )
         self.declare_parameter('steering_switch_margin', 0.04)
 
         hz = max(0.5, float(self.get_parameter('publish_hz').value))
@@ -650,6 +708,11 @@ class LocalPathSelector(Node):
         """Store the latest depth point cloud."""
         self.pointcloud = msg
         self.pointcloud_received_at = time.monotonic()
+
+    def scan_callback(self, msg: LaserScan) -> None:
+        """Store actual bridged LiDAR observations for local collision checks."""
+        self.scan = msg
+        self.scan_received_at = time.monotonic()
 
     def odom_callback(self, msg: Odometry) -> None:
         """Store vehicle odometry."""
@@ -673,6 +736,20 @@ class LocalPathSelector(Node):
 
     def home_callback(self, msg: PoseStamped) -> None:
         self.home_pose = msg.pose
+
+    def dynamic_risk_callback(self, msg: Float32) -> None:
+        """Store the latest dynamic obstacle risk score."""
+        self.dynamic_risk = max(0.0, min(1.0, float(msg.data)))
+        self.dynamic_risk_received_at = time.monotonic()
+
+    def autonomy_mode_callback(self, msg: AutonomyMode) -> None:
+        """Store the current autonomy mode."""
+        self.autonomy_mode = msg.mode
+        self.autonomy_mode_received_at = time.monotonic()
+
+    def localization_confidence_callback(self, msg: Float32) -> None:
+        """Store localization confidence for risk assessment."""
+        self.localization_confidence = max(0.0, min(1.0, float(msg.data)))
 
     def publish_stop(self, state: str) -> None:
         """Publish zero advisory motion."""
@@ -703,6 +780,63 @@ class LocalPathSelector(Node):
         cmd = Twist()
         self.local_cmd_pub.publish(cmd)
 
+    def _sensor_degradation_cost(self) -> float:
+        """Return sensor degradation cost based on current autonomy mode."""
+        mode = self.autonomy_mode
+        if mode == 'DEGRADED_SENSOR':
+            return 0.4
+        if mode == 'DEGRADED_PERCEPTION':
+            return 0.2
+        return 0.0
+
+    def _publish_risk_assessment(
+        self,
+        terrain_cost: float,
+        obstacle_cost: float,
+        path_valid: bool,
+        selected_path_reason: str,
+    ) -> None:
+        """Compute and publish a PlannerRisk message after each planning cycle."""
+        dynamic_risk_cost = self.dynamic_risk
+        localization_risk = max(0.0, 1.0 - self.localization_confidence)
+        sensor_deg_cost = self._sensor_degradation_cost()
+
+        # Weighted sum: terrain(0.20), obstacle(0.25), dynamic(0.20),
+        # localization(0.20), sensor_degradation(0.15)
+        total = (
+            0.20 * max(0.0, min(1.0, terrain_cost))
+            + 0.25 * max(0.0, min(1.0, obstacle_cost))
+            + 0.20 * max(0.0, min(1.0, dynamic_risk_cost))
+            + 0.20 * max(0.0, min(1.0, localization_risk))
+            + 0.15 * max(0.0, min(1.0, sensor_deg_cost))
+        )
+        total = max(0.0, min(1.0, total))
+
+        if total < 0.3:
+            risk_level = 'LOW'
+        elif total < 0.6:
+            risk_level = 'MODERATE'
+        elif total < 0.8:
+            risk_level = 'HIGH'
+        else:
+            risk_level = 'CRITICAL'
+
+        msg = PlannerRisk()
+        msg.stamp = self.get_clock().now().to_msg()
+        msg.terrain_cost = float(terrain_cost)
+        msg.obstacle_cost = float(obstacle_cost)
+        msg.dynamic_risk_cost = float(dynamic_risk_cost)
+        msg.localization_risk = float(localization_risk)
+        msg.sensor_degradation_cost = float(sensor_deg_cost)
+        msg.smoothness_cost = 0.0
+        msg.progress_cost = 0.0
+        msg.total_cost = float(total)
+        msg.risk_level = risk_level
+        msg.path_valid = path_valid
+        msg.selected_path_reason = selected_path_reason
+        msg.rejected_alternatives = []
+        self.risk_assessment_pub.publish(msg)
+
     def process(self) -> None:
         """Evaluate candidate local paths."""
         if self.mission_state == 'MISSION_COMPLETE':
@@ -711,6 +845,20 @@ class LocalPathSelector(Node):
         if self.mission_state == 'FINAL_ALIGNMENT':
             self.process_final_alignment()
             return
+
+        # When the system is in RECOVERY mode, let recovery take over and
+        # don't fight it. Publish a stop advisory so the safety supervisor
+        # knows we're not generating planner commands.
+        if self.autonomy_mode == 'RECOVERY':
+            self.publish_stop('RECOVERY_MODE')
+            self._publish_risk_assessment(
+                terrain_cost=0.0,
+                obstacle_cost=1.0,
+                path_valid=False,
+                selected_path_reason='Yielding to recovery manager',
+            )
+            return
+
         if self.navigation_state != 'NAVIGATE':
             self.publish_stop(self.navigation_state)
             return
@@ -734,6 +882,9 @@ class LocalPathSelector(Node):
         if self.pointcloud is None:
             self.publish_stop('WAITING_FOR_DEPTH')
             return
+        if self.scan is None:
+            self.publish_stop('WAITING_FOR_LIDAR')
+            return
 
         max_sensor_age = float(
             self.get_parameter('max_sensor_age_s').value
@@ -741,6 +892,7 @@ class LocalPathSelector(Node):
         now = time.monotonic()
         for received_at, state in (
             (self.pointcloud_received_at, 'STALE_DEPTH'),
+            (self.scan_received_at, 'STALE_LIDAR'),
             (self.score_map_received_at, 'STALE_TRAVERSABILITY'),
             (self.odom_received_at, 'STALE_LOCALIZATION'),
         ):
@@ -787,6 +939,13 @@ class LocalPathSelector(Node):
             self.publish_stop('INVALID_DEPTH')
             return
 
+        # Adjust obstacle clearance threshold for degraded perception mode
+        # (50% increase in critical distance to be more conservative).
+        if self.autonomy_mode == 'DEGRADED_PERCEPTION':
+            effective_clearance_scale = 1.5
+        else:
+            effective_clearance_scale = 1.0
+
         selected_angle, selected_score, selected_obstacle_score = (
             select_best_candidate(
                 image,
@@ -805,10 +964,38 @@ class LocalPathSelector(Node):
         if evidence['raw_clearance_m'] is not None:
             self.raw_clearance_pub.publish(Float32(data=evidence['raw_clearance_m']))
 
+        # When perception is degraded, use a more conservative (larger) critical
+        # distance for clearance scoring.
+        base_critical_distance = 1.25
+        effective_critical_distance = base_critical_distance * effective_clearance_scale
+
         selected_clearance = obstacle_clearance(
             points,
             selected_angle,
         )
+        lidar_clearance = scan_corridor_clearance(self.scan, selected_angle)
+        selected_clearance = min(selected_clearance, lidar_clearance)
+
+        # Recompute obstacle score with adjusted critical distance for degraded mode
+        selected_obstacle_score = min(
+            obstacle_clearance_score(
+                selected_clearance,
+                critical_distance=effective_critical_distance,
+            ),
+            obstacle_clearance_score(
+                lidar_clearance,
+                critical_distance=effective_critical_distance,
+            ),
+        )
+
+        # Factor dynamic_risk into obstacle cost: additive penalty
+        # This reduces the effective obstacle score when dynamic obstacles are present.
+        dynamic_obstacle_penalty = self.dynamic_risk * 0.5
+        selected_obstacle_score = max(0.0, selected_obstacle_score - dynamic_obstacle_penalty)
+
+        # Derive terrain cost (inverse of terrain-based score component)
+        terrain_cost = 1.0 - float(selected_score)
+        obstacle_cost = 1.0 - float(selected_obstacle_score)
 
         self.previous_angle = selected_angle
 
@@ -858,6 +1045,12 @@ class LocalPathSelector(Node):
             state_msg.data = 'LOCAL_STOP_OBSTACLE'
             self.local_state_pub.publish(state_msg)
             self.local_cmd_pub.publish(Twist())
+            self._publish_risk_assessment(
+                terrain_cost=terrain_cost,
+                obstacle_cost=obstacle_cost,
+                path_valid=False,
+                selected_path_reason='Obstacle stop: corridor critically obstructed',
+            )
             self.get_logger().warn(
                 f'local obstacle stop: clearance='
                 f'{min(selected_clearance, 3.0):.2f} m',
@@ -868,11 +1061,36 @@ class LocalPathSelector(Node):
         max_angular = float(
             self.get_parameter('max_angular_speed').value
         )
+        effective_speed = self.global_speed
+        # When localization is degraded, reduce max speed by 50%.
+        if self.autonomy_mode == 'DEGRADED_LOCALIZATION':
+            effective_speed *= 0.5
+
         cmd = waypoint_command(
-            goal_angle, selected_angle, self.global_speed, selected_obstacle_score,
+            goal_angle, selected_angle, effective_speed, selected_obstacle_score,
             max_angle=max_angle, max_angular=max_angular)
 
         self.local_cmd_pub.publish(cmd)
+
+        # Compose human-readable reason
+        mode_note = (
+            f' [mode={self.autonomy_mode}]' if self.autonomy_mode != 'FULL_AUTONOMY' else ''
+        )
+        dyn_note = (
+            f' [dyn_risk={self.dynamic_risk:.2f}]' if self.dynamic_risk > 0.05 else ''
+        )
+        path_reason = (
+            f'Navigating: angle={math.degrees(selected_angle):.1f}deg '
+            f'score={selected_score:.3f}'
+            f'{mode_note}{dyn_note}'
+        )
+
+        self._publish_risk_assessment(
+            terrain_cost=terrain_cost,
+            obstacle_cost=obstacle_cost,
+            path_valid=True,
+            selected_path_reason=path_reason,
+        )
 
         self.get_logger().info(
             f'local angle={math.degrees(selected_angle):.1f} deg '
@@ -880,6 +1098,8 @@ class LocalPathSelector(Node):
             f'goal={math.degrees(goal_angle):.1f} deg '
             f'obstacle={min(selected_clearance, 3.0):.2f} m '
             f'obstacle_score={selected_obstacle_score:.3f} '
+            f'dyn_risk={self.dynamic_risk:.2f} '
+            f'mode={self.autonomy_mode} '
             f'speed={cmd.linear.x:.3f}',
             throttle_duration_sec=2.0,
         )

@@ -4,7 +4,7 @@ import math
 import struct
 
 import numpy as np
-from sensor_msgs.msg import PointCloud2
+from sensor_msgs.msg import LaserScan, PointCloud2
 
 from sih26126_planner.local_path_selector import (
     angle_to_pixel,
@@ -16,6 +16,7 @@ from sih26126_planner.local_path_selector import (
     obstacle_return_evidence,
     pointcloud_to_array,
     sample_corridor_score,
+    scan_corridor_clearance,
     score_candidate,
     select_best_candidate,
     waypoint_command,
@@ -37,6 +38,20 @@ def test_dynamic_inputs_must_be_recent():
     assert not input_is_fresh(9.0, 0.75, now=10.0)
     assert not input_is_fresh(None, 0.75, now=10.0)
     assert not input_is_fresh(10.1, 0.75, now=10.0)
+
+
+def test_live_lidar_clearance_tracks_only_selected_forward_corridor():
+    """A real LaserScan return inside the chosen corridor becomes clearance."""
+    scan = LaserScan()
+    scan.angle_min = -math.pi / 2
+    scan.angle_increment = math.pi / 180
+    scan.range_min = 0.1
+    scan.range_max = 20.0
+    scan.ranges = [float('inf')] * 181
+    scan.ranges[90] = 0.82
+    assert math.isclose(scan_corridor_clearance(scan, 0.0), 0.82, abs_tol=1e-6)
+    assert math.isinf(scan_corridor_clearance(scan, math.radians(30)))
+    assert math.isinf(scan_corridor_clearance(None, 0.0))
 
 
 def test_local_planner_depth_stride_preserves_organized_geometry():

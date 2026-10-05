@@ -1,4 +1,4 @@
-"""Unit tests for the SIH26126 sensor contract."""
+"""Unit tests for the DRISTHI sensor contract."""
 
 import numpy as np
 

@@ -1,0 +1,208 @@
+<?xml version="1.0" ?>
+<!--
+  dynamic_obstacle_world.sdf
+  Gazebo Harmonic / SDF 1.9 world for dynamic obstacle scenario testing.
+
+  Contents:
+    - Flat ground plane (30 x 30 m)
+    - sih_ugv spawned at origin
+    - moving_obstacle: orange box (0.8 m cube) crossing forward path, looping
+    - stationary_obstacle: grey box (1.0 m cube) at (6, 1, 0.5) — permanent blocker
+    - disappearing_obstacle: red box at (3, -1, 0.4) that teleports off-world after 10s
+-->
+<sdf version="1.9">
+  <world name="dynamic_obstacle_world">
+
+    <!-- ── Physics ──────────────────────────────────────────────────── -->
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <!-- ── Required system plugins ──────────────────────────────────── -->
+    <plugin filename="gz-sim-physics-system"
+            name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-scene-broadcaster-system"
+            name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-sensors-system"
+            name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-imu-system"
+            name="gz::sim::systems::Imu"/>
+    <plugin filename="gz-sim-user-commands-system"
+            name="gz::sim::systems::UserCommands"/>
+
+    <!-- ── Scene / Lighting ─────────────────────────────────────────── -->
+    <scene>
+      <ambient>0.6 0.6 0.6 1</ambient>
+      <background>0.72 0.82 0.91 1</background>
+      <shadows>true</shadows>
+    </scene>
+
+    <light name="sun" type="directional">
+      <pose>0 0 15 0 0 0</pose>
+      <direction>-0.45 0.32 -1</direction>
+      <diffuse>0.9 0.9 0.9 1</diffuse>
+      <specular>0.3 0.3 0.3 1</specular>
+      <cast_shadows>true</cast_shadows>
+    </light>
+
+    <!-- ── Ground plane ─────────────────────────────────────────────── -->
+    <model name="ground">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>30 30</size>
+            </plane>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>30 30</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.30 0.38 0.25 1</ambient>
+            <diffuse>0.36 0.44 0.30 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ── UGV model ─────────────────────────────────────────────────── -->
+    <include>
+      <uri>models/sih_ugv/sih_ugv.sdf</uri>
+      <name>sih_ugv</name>
+      <pose>0 0 0 0 0 0</pose>
+    </include>
+
+    <!-- ── Stationary obstacle: grey box 1.0 m at (6, 1, 0.5) ──────── -->
+    <model name="stationary_obstacle">
+      <static>true</static>
+      <pose>6 1 0.5 0 0 0</pose>
+      <link name="body">
+        <collision name="collision">
+          <geometry>
+            <box><size>1.0 1.0 1.0</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>1.0 1.0 1.0</size></box>
+          </geometry>
+          <material>
+            <ambient>0.45 0.45 0.45 1</ambient>
+            <diffuse>0.50 0.50 0.50 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ── Moving obstacle: orange box 0.8 m crossing forward path ──── -->
+    <!--
+      Trajectory: starts at (4, -3, 0.4), moves to (4, 3, 0.4) in 6 s,
+      holds for 3 s, returns in 6 s, then loops.
+    -->
+    <actor name="moving_obstacle">
+      <pose>4 -3 0.4 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.8 0.8 0.8</size></box>
+          </geometry>
+          <material>
+            <ambient>0.9 0.5 0.1 1</ambient>
+            <diffuse>0.9 0.5 0.1 1</diffuse>
+            <specular>0.2 0.1 0.0 1</specular>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box><size>0.8 0.8 0.8</size></box>
+          </geometry>
+        </collision>
+      </link>
+      <script>
+        <loop>true</loop>
+        <delay_start>0</delay_start>
+        <auto_start>true</auto_start>
+        <trajectory id="0" type="square">
+          <waypoint>
+            <time>0</time>
+            <pose>4 -3 0.4 0 0 0</pose>
+          </waypoint>
+          <waypoint>
+            <time>6</time>
+            <pose>4 3 0.4 0 0 0</pose>
+          </waypoint>
+          <waypoint>
+            <time>9</time>
+            <pose>4 3 0.4 0 0 0</pose>
+          </waypoint>
+          <waypoint>
+            <time>15</time>
+            <pose>4 -3 0.4 0 0 0</pose>
+          </waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- ── Disappearing obstacle: red box at (3, -1, 0.4) ───────────── -->
+    <!--
+      Appears at (3, -1, 0.4) and teleports to (-20, -20, 0.4) after 10 s.
+      This simulates a transient obstacle that enters and then leaves the scene.
+    -->
+    <actor name="disappearing_obstacle">
+      <pose>3 -1 0.4 0 0 0</pose>
+      <link name="body">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.7 0.7 0.8</size></box>
+          </geometry>
+          <material>
+            <ambient>0.85 0.1 0.1 1</ambient>
+            <diffuse>0.85 0.1 0.1 1</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box><size>0.7 0.7 0.8</size></box>
+          </geometry>
+        </collision>
+      </link>
+      <script>
+        <loop>false</loop>
+        <delay_start>0</delay_start>
+        <auto_start>true</auto_start>
+        <trajectory id="0" type="disappear">
+          <!-- Stay at initial position for 10 seconds -->
+          <waypoint>
+            <time>0</time>
+            <pose>3 -1 0.4 0 0 0</pose>
+          </waypoint>
+          <waypoint>
+            <time>10</time>
+            <pose>3 -1 0.4 0 0 0</pose>
+          </waypoint>
+          <!-- Teleport far outside the scene -->
+          <waypoint>
+            <time>10.01</time>
+            <pose>-20 -20 0.4 0 0 0</pose>
+          </waypoint>
+          <!-- Hold at out-of-range position indefinitely -->
+          <waypoint>
+            <time>9999</time>
+            <pose>-20 -20 0.4 0 0 0</pose>
+          </waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+  </world>
+</sdf>

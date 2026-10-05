@@ -1,4 +1,4 @@
-"""SIH26126 sensor validity, freshness, and synchronization monitor."""
+"""DRISTHI sensor validity, freshness, and synchronization monitor."""
 
 from collections import deque
 import math
@@ -321,7 +321,7 @@ class SensorContractNode(Node):
         )
 
         self.get_logger().info(
-            'SIH26126 sensor contract started.'
+            'DRISTHI sensor contract started.'
         )
 
     def _mark_received(
