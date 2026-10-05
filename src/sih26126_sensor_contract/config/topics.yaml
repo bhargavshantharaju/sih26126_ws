@@ -1,0 +1,118 @@
+# DRISTHI Canonical Sensor/Topic Contract
+# All topic names for the DRISTHI autonomous UGV system.
+# This is the single source of truth - do not hardcode topic names elsewhere.
+
+sensors:
+  lidar_pointcloud: /lidar/points
+  lidar_scan_2d: /lidar/scan_2d
+  camera_rgb: /camera
+  camera_info: /camera_info
+  depth_points: /depth_camera/points
+  imu: /imu
+  wheel_odometry: /model/sih_ugv/odometry
+  clock: /clock
+  contacts: /ugv_contacts
+
+localization:
+  ekf_odometry: /odometry/filtered
+  fusion_wheel_odom: /fusion/wheel_odometry
+  fusion_imu: /fusion/imu
+  pose: /localization/pose
+  source: /localization/source
+  confidence: /localization/confidence
+
+mapping:
+  map: /map
+  slam_map: /slam_map
+  map_metadata: /map_metadata
+  mapping_state: /mapping/state
+
+traversability:
+  score_map: /traversability/score_map
+  mean_score: /traversability/mean_score
+  terrain_aware_score_map: /traversability/terrain_aware_score_map
+  terrain_aware_mean_score: /traversability/terrain_aware_mean_score
+  terrain_factor: /traversability/terrain_factor
+
+terrain:
+  class: /terrain/class
+  class_confidence: /terrain/class_confidence
+
+geometry:
+  geometry_confidence: /geometry/geometry_confidence
+  slope_map: /geometry/slope_map
+  roughness_map: /geometry/roughness_map
+  surface_normals: /geometry/surface_normals
+  valid_point_ratio: /geometry/valid_point_ratio
+
+obstacles:
+  tracked_obstacles: /obstacles/tracked
+  obstacle_markers: /obstacles/markers
+  dynamic_risk: /obstacles/dynamic_risk
+
+planning:
+  global_path: /planner/global_path
+  global_path_status: /planner/global_path_status
+  local_path: /planner/local_path
+  local_path_score: /planner/local_path_score
+  navigation_state: /planner/navigation_state
+  local_navigation_state: /planner/local_navigation_state
+  recommended_cmd_vel: /planner/local_recommended_cmd_vel
+  recommended_speed: /planner/recommended_speed
+  obstacle_clearance: /planner/local_obstacle_clearance
+  raw_obstacle_clearance: /planner/raw_obstacle_clearance
+  obstacle_score: /planner/local_obstacle_score
+  steering_angle: /planner/local_steering_angle
+  distance_to_goal: /planner/distance_to_goal
+  obstacle_evidence: /planner/obstacle_evidence
+  risk_assessment: /planner/risk_assessment
+
+safety:
+  cmd_vel: /cmd_vel
+  state: /safety/state
+  reason: /safety/reason
+
+recovery:
+  cmd_vel_suggestion: /recovery/cmd_vel_suggestion
+  state: /recovery/state
+  reason: /recovery/reason
+
+exploration:
+  state: /exploration/state
+  goal: /exploration/goal
+  goal_status: /exploration/goal_status
+  goal_change_reason: /exploration/goal_change_reason
+  frontiers: /exploration/frontiers
+  frontier_count: /exploration/frontier_count
+  frontiers_completed: /exploration/frontiers_completed
+  explored_percentage: /exploration/explored_percentage
+  distance_to_frontier: /exploration/distance_to_frontier
+  information_gain: /exploration/information_gain
+  progress_distance: /exploration/progress_distance
+  blacklisted_count: /exploration/blacklisted_count
+  frontier_score: /exploration/frontier_score
+  goal_age: /exploration/goal_age
+  goal_distance: /exploration/goal_distance
+  selected_frontier_id: /exploration/selected_frontier_id
+
+mission:
+  state: /mission/state
+  goal: /mission/goal
+  home_pose: /mission/home_pose
+  metrics: /mission/metrics
+  known_area_m2: /mission/known_area_m2
+  result_path: /mission/result_path
+  reason: /mission/reason
+
+autonomy:
+  mode: /autonomy/mode
+  events: /autonomy/events
+  summary: /autonomy/summary
+  capability_score: /autonomy/capability_score
+
+health:
+  lidar: /sensor_health/lidar
+  camera: /sensor_health/camera
+  depth: /sensor_health/depth
+  imu: /sensor_health/imu
+  odom: /sensor_health/odom

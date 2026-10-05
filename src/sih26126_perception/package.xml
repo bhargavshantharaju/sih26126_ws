@@ -4,7 +4,7 @@
 
   <name>sih26126_perception</name>
   <version>0.1.0</version>
-  <description>Camera-based perception for SIH26126.</description>
+  <description>Camera-based perception for DRISTHI.</description>
 
   <maintainer email="venom@todo.todo">venom</maintainer>
   <license>Apache-2.0</license>

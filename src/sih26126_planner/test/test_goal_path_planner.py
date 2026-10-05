@@ -2,11 +2,15 @@
 
 import math
 
+from geometry_msgs.msg import PoseStamped
+from nav_msgs.msg import Path
+
 from sih26126_planner.goal_path_planner import (
     build_straight_path,
     distance_to_goal,
     navigation_state,
     quaternion_to_yaw,
+    route_lookahead_target,
     wrap_angle,
 )
 
@@ -143,3 +147,17 @@ def test_path_has_multiple_samples():
     )
 
     assert len(path.poses) > 2
+
+
+def test_route_lookahead_uses_nearby_map_waypoint_not_far_goal():
+    path = Path()
+    path.header.frame_id = 'odom'
+    for x, y in ((0.0, 0.0), (0.5, 0.0), (1.0, 0.0), (1.5, 0.5), (2.0, 1.0)):
+        pose = PoseStamped()
+        pose.pose.position.x = x
+        pose.pose.position.y = y
+        path.poses.append(pose)
+    target = route_lookahead_target(path, 0.05, 0.0, 0.9)
+    assert target is not None
+    assert target.x == 1.0
+    assert target.y == 0.0

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Terrain-aware advisory planner baseline for SIH26126."""
+"""Terrain-aware advisory planner baseline for DRISTHI."""
 
 from __future__ import annotations
 

@@ -3,10 +3,10 @@
   <name>sih26126_geometry</name>
   <version>0.1.0</version>
   <description>
-    SIH26126 3D ground and obstacle geometry baseline.
+    DRISTHI 3D ground and obstacle geometry baseline.
   </description>
   <maintainer email="team@example.com">
-    SIH26126 Team
+    DRISTHI Team
   </maintainer>
   <license>Apache-2.0</license>
   <buildtool_depend>ament_python</buildtool_depend>

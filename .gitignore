@@ -22,6 +22,10 @@ Thumbs.db
 # Generated simulation data
 *.bag
 *.db3
+/artifacts/mission_results/
+/artifacts/objective4/dynamic_obstacle.json
+/frames_*.gv
+/frames_*.pdf
 
 # Temporary files
 *.tmp

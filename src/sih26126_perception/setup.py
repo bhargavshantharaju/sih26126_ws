@@ -27,7 +27,7 @@ setup(
     zip_safe=True,
     maintainer='venom',
     maintainer_email='venom@todo.todo',
-    description='Camera-based perception for SIH26126.',
+    description='Camera-based perception for DRISTHI.',
     license='Apache-2.0',
     entry_points={
         'console_scripts': [

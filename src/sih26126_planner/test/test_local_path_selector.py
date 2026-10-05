@@ -1,8 +1,10 @@
 """Tests for spatial local path selection."""
 
 import math
+import struct
 
 import numpy as np
+from sensor_msgs.msg import LaserScan, PointCloud2
 
 from sih26126_planner.local_path_selector import (
     angle_to_pixel,
@@ -11,9 +13,13 @@ from sih26126_planner.local_path_selector import (
     input_is_fresh,
     obstacle_clearance,
     obstacle_clearance_score,
+    obstacle_return_evidence,
+    pointcloud_to_array,
     sample_corridor_score,
+    scan_corridor_clearance,
     score_candidate,
     select_best_candidate,
+    waypoint_command,
     wrap_angle,
 )
 
@@ -32,6 +38,39 @@ def test_dynamic_inputs_must_be_recent():
     assert not input_is_fresh(9.0, 0.75, now=10.0)
     assert not input_is_fresh(None, 0.75, now=10.0)
     assert not input_is_fresh(10.1, 0.75, now=10.0)
+
+
+def test_live_lidar_clearance_tracks_only_selected_forward_corridor():
+    """A real LaserScan return inside the chosen corridor becomes clearance."""
+    scan = LaserScan()
+    scan.angle_min = -math.pi / 2
+    scan.angle_increment = math.pi / 180
+    scan.range_min = 0.1
+    scan.range_max = 20.0
+    scan.ranges = [float('inf')] * 181
+    scan.ranges[90] = 0.82
+    assert math.isclose(scan_corridor_clearance(scan, 0.0), 0.82, abs_tol=1e-6)
+    assert math.isinf(scan_corridor_clearance(scan, math.radians(30)))
+    assert math.isinf(scan_corridor_clearance(None, 0.0))
+
+
+def test_local_planner_depth_stride_preserves_organized_geometry():
+    """The local scorer can downsample dense organized sensor frames safely."""
+    msg = PointCloud2()
+    msg.height = 4
+    msg.width = 4
+    msg.point_step = 12
+    msg.row_step = 48
+    msg.data = b''.join(
+        struct.pack('<fff', float(row * 10 + col), float(col), float(row))
+        for row in range(4) for col in range(4)
+    )
+
+    points = pointcloud_to_array(msg, stride=2)
+
+    assert points.shape == (4, 3)
+    np.testing.assert_array_equal(
+        points[:, 0], np.array([0.0, 2.0, 20.0, 22.0], dtype=np.float32))
 
 
 def test_goal_angle_straight_ahead():
@@ -148,6 +187,33 @@ def test_select_candidate_avoids_bad_center():
     assert selected != 0.0
     assert score > 0.50
     assert math.isclose(obstacle_score, 1.0)
+
+
+def test_visible_edge_candidate_steers_around_centered_depth_obstacle():
+    """A clear path near the camera FOV edge remains reachable to the selector."""
+    image = np.full((480, 640), 220, dtype=np.uint8)
+    points = [
+        (x, y, 0.0)
+        for x in np.linspace(0.3, 3.0, 32)
+        for y in np.linspace(-1.8, 1.8, 37)
+    ]
+    points.append((0.75, 0.0, 0.5))
+    points = np.asarray(points, dtype=np.float32)
+    edge_angle = math.radians(28.0)
+
+    selected, _, obstacle_score = select_best_candidate(
+        image,
+        [math.radians(-28.0), math.radians(-25.0), 0.0,
+         math.radians(25.0), edge_angle],
+        554.25,
+        320.0,
+        edge_angle,
+        0.0,
+        points,
+    )
+
+    assert math.isclose(selected, edge_angle)
+    assert obstacle_score > 0.01
 
 
 def test_obstacle_clearance_no_obstacle():
@@ -370,3 +436,48 @@ def test_build_left_path():
     )
 
     assert path.poses[-1].pose.position.y > 0.0
+
+
+def test_waypoint_outside_local_steering_range_rotates_without_translation():
+    command = waypoint_command(
+        math.radians(90), math.radians(25), 0.2, 1.0)
+    assert command.linear.x == 0.0
+    assert command.angular.z > 0.0
+
+
+def test_obstacle_evidence_comes_from_depth_returns():
+    ground_x = np.linspace(0.5, 2.5, 80)
+    ground_y = np.linspace(-0.3, 0.3, 10)
+    gx, gy = np.meshgrid(ground_x, ground_y)
+    ground = np.column_stack((gx.ravel(), gy.ravel(), np.full(gx.size, -1.12)))
+    ox, oy = np.meshgrid(np.linspace(1.0, 1.2, 12), np.linspace(-0.1, 0.1, 10))
+    obstacle = np.column_stack((ox.ravel(), oy.ravel(), np.full(ox.size, -0.7)))
+    evidence = obstacle_return_evidence(np.vstack((ground, obstacle)), 0.0)
+    assert evidence['valid_points'] > 0
+    assert evidence['obstacle_points'] > 0
+    assert evidence['raw_clearance_m'] is not None
+    assert evidence['selected_corridor_clearance_m'] is not None
+
+
+def test_clear_depth_corridor_has_null_instead_of_infinite_clearance():
+    x = np.linspace(0.5, 2.5, 80)
+    y = np.linspace(-0.3, 0.3, 10)
+    xx, yy = np.meshgrid(x, y)
+    ground = np.column_stack((xx.ravel(), yy.ravel(),
+                              np.full(xx.size, -1.12)))
+    evidence = obstacle_return_evidence(ground, 0.0)
+    assert evidence['obstacle_points'] == 0
+    assert evidence['raw_clearance_m'] is None
+    assert evidence['selected_corridor_clearance_m'] is None
+
+
+def test_clear_obstacle_corridor_allows_goal_directed_translation():
+    command = waypoint_command(0.1, 0.05, 0.2, 1.0)
+    assert command.linear.x > 0.0
+    assert math.isclose(command.angular.z, 0.09)
+
+
+def test_blocked_local_corridor_stops_recommended_command():
+    command = waypoint_command(0.0, 0.0, 0.2, 0.0)
+    assert command.linear.x == 0.0
+    assert command.angular.z == 0.0
