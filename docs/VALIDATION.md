@@ -62,7 +62,7 @@ colcon test
 colcon test-result --all
 ```
 
-**321 tests total — 316 passed, 5 skipped, 0 failures.**
+**321 tests total — 316 passed, 5 skipped, 0 failures, 0 errors.**
 
 Coverage includes:
 - Stuck detection state machine (all transitions, guard conditions)

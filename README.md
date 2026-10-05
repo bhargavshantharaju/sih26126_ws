@@ -192,9 +192,10 @@ colcon test
 colcon test-result --verbose
 ```
 
-All 210 tests pass. The stuck detection state machine has deterministic unit
-tests covering guard conditions, FSM transitions, displacement calculation,
-and architecture constraints (no direct `/cmd_vel` publishing from recovery).
+The current suite contains 321 tests: 316 passed, 5 skipped, 0 failures, and
+0 errors. The stuck detection state machine has deterministic unit tests
+covering guard conditions, FSM transitions, displacement calculation, and
+architecture constraints (no direct `/cmd_vel` publishing from recovery).
 
 Live Gazebo end-to-end recovery testing (vehicle physically gets stuck and
 autonomously recovers) is future work requiring a controlled test scenario.
@@ -240,7 +241,7 @@ Verified live on this stack with `slam:=true fusion:=true scenario:=showcase`:
 | `/odometry/filtered` (EKF) | ~17 Hz ✅           |
 | `map → odom` TF (SLAM)     | Published ✅        |
 | `fusion_health_monitor`    | HEALTHY ✅          |
-| Unit test suite            | 321 total; 316 passed; 5 skipped ✅   |
+| Unit test suite            | 321 total; 316 passed; 5 skipped; 0 failures/errors ✅ |
 
 See `docs/VALIDATION.md` for full details.
 
