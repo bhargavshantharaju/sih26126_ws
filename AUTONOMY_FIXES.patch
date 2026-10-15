@@ -1,0 +1,738 @@
+diff --git a/src/sih26126_autonomy/sih26126_autonomy/frontier_explorer.py b/src/sih26126_autonomy/sih26126_autonomy/frontier_explorer.py
+index 66cd868..7e2fe18 100644
+--- a/src/sih26126_autonomy/sih26126_autonomy/frontier_explorer.py
++++ b/src/sih26126_autonomy/sih26126_autonomy/frontier_explorer.py
+@@ -178,6 +178,83 @@ def nearest_free(grid: np.ndarray, start: Cell, radius: int = 15) -> Optional[Ce
+     return int(candidates[idx, 1]), int(candidates[idx, 0])
+ 
+ 
++def find_best_connected_start(grid: np.ndarray, robot_col: int, robot_row: int,
++                               min_component_size: int = 50) -> Optional[Cell]:
++    """Find a start cell in the largest well-connected free-space component.
++
++    SLAM's initial map often has isolated single-cell free islands separated
++    by unknown space along individual laser beams.  The nearest free cell to
++    the robot may belong to one of these tiny islands, causing Dijkstra to
++    reach fewer than ``min_component_size`` cells and report no reachable
++    frontiers.
++
++    This function BFS-enumerates all 8-connected free-space components, then
++    returns the cell in the *best* component (largest that is also closest to
++    the robot) that is nearest to the robot's projected map position.  When
++    the map is mature and the robot is already inside a large free region the
++    nearest free cell will already satisfy the size threshold and this
++    function is not needed — it is only called as a fallback when Dijkstra
++    from the standard start reaches fewer than ``min_component_size`` cells.
++    """
++    height, width = grid.shape
++    free_rows, free_cols = np.where(grid == 0)
++    if not len(free_rows):
++        return None
++
++    visited: set = set()
++    components: list = []
++
++    for i in range(len(free_rows)):
++        r, c = int(free_rows[i]), int(free_cols[i])
++        if (c, r) in visited:
++            continue
++        comp: list = []
++        queue = [(c, r)]
++        visited.add((c, r))
++        while queue:
++            col, row = queue.pop()
++            comp.append((col, row))
++            for dx, dy in NEIGHBORS:
++                nx, ny = col + dx, row + dy
++                if ((nx, ny) not in visited
++                        and 0 <= ny < height
++                        and 0 <= nx < width
++                        and grid[ny, nx] == 0):
++                    visited.add((nx, ny))
++                    queue.append((nx, ny))
++        components.append(comp)
++
++    if not components:
++        return None
++
++    # Score each component: prefer large components that are close to the robot.
++    # Minimum size filter: ignore noise islands below the threshold.
++    large = [c for c in components if len(c) >= min_component_size]
++    if not large:
++        # Fall back to the largest component regardless of size
++        large = [max(components, key=len)]
++
++    best_comp = None
++    best_cell = None
++    best_score = math.inf  # lower is better
++
++    for comp in large:
++        cols = np.array([cell[0] for cell in comp])
++        rows = np.array([cell[1] for cell in comp])
++        dists = (cols - robot_col) ** 2 + (rows - robot_row) ** 2
++        nearest_idx = int(np.argmin(dists))
++        nearest_dist = float(dists[nearest_idx])
++        # Combined score: penalise distance, reward size (log scale to avoid
++        # over-preferring distant huge components over close medium ones).
++        score = nearest_dist / math.log(max(2, len(comp)))
++        if score < best_score:
++            best_score = score
++            best_comp = comp
++            best_cell = (int(cols[nearest_idx]), int(rows[nearest_idx]))
++
++    return best_cell
++
++
+ def shortest_paths(grid: np.ndarray, start: Cell):
+     """Run Dijkstra over known-free cells and return distances and parents."""
+     width, height = grid.shape[1], grid.shape[0]
+@@ -240,12 +317,27 @@ def select_frontier(grid: np.ndarray, frontiers: np.ndarray,
+                     blacklist=None,
+                     blacklist_radius_cells: float = 0.0,
+                     duplicate_radius_cells: float = 0.0,
+-                    active_recovery_radius_cells: int = 3) -> Tuple[Optional[Cell], float, int]:
+-    """Select an informative reachable frontier cluster with goal hysteresis."""
++                    active_recovery_radius_cells: int = 3,
++                    allow_bootstrap: bool = False) -> Tuple[Optional[Cell], float, int]:
++    """Select an informative reachable frontier cluster with goal hysteresis.
++    
++    When allow_bootstrap=True and the Dijkstra-reachable region is very small
++    (typical at SLAM startup), this function will select the nearest frontier
++    to the reachable region even if the frontier itself is not Dijkstra-reachable.
++    This enables "bootstrap exploration" where the robot makes a short movement
++    toward the frontier, allowing SLAM to observe more area and build a larger
++    connected free-space region on the next iteration.
++    """
+     height, width = grid.shape
+     reachable = []
+     clusters = merge_nearby_clusters(
+         cluster_frontiers(frontiers, minimum_cluster_size), duplicate_radius_cells)
++    
++    # When bootstrapping with a tiny Dijkstra region, also track near-reachable
++    # frontiers (close to the reachable region but not strictly IN it).
++    near_reachable = []
++    reachable_cells = set(distances.keys()) if allow_bootstrap else set()
++    
+     for cluster in clusters:
+         center_col = sum(cell[0] for cell in cluster) / len(cluster)
+         center_row = sum(cell[1] for cell in cluster) / len(cluster)
+@@ -257,20 +349,49 @@ def select_frontier(grid: np.ndarray, frontiers: np.ndarray,
+                              for blocked in blacklist):
+             continue
+         index = row * width + col
+-        if index not in distances:
+-            continue
+-        distance = float(distances[index])
+-        gain = 0
+-        for cluster_col, cluster_row in cluster:
+-            neighborhood = grid[max(0, cluster_row - 2):min(height, cluster_row + 3),
+-                                max(0, cluster_col - 2):min(width, cluster_col + 3)]
+-            gain += int(np.count_nonzero(neighborhood == -1))
+-        desired_heading = math.atan2(row - start[1], col - start[0])
+-        heading_change = abs(math.atan2(
+-            math.sin(desired_heading - current_yaw),
+-            math.cos(desired_heading - current_yaw)))
+-        score = gain / max(1.0, distance + 0.75 * heading_change + 1.0)
+-        reachable.append((score, gain, distance, cell))
++        
++        # Standard reachability check: frontier must be in Dijkstra distances
++        if index in distances:
++            distance = float(distances[index])
++            gain = 0
++            for cluster_col, cluster_row in cluster:
++                neighborhood = grid[max(0, cluster_row - 2):min(height, cluster_row + 3),
++                                    max(0, cluster_col - 2):min(width, cluster_col + 3)]
++                gain += int(np.count_nonzero(neighborhood == -1))
++            desired_heading = math.atan2(row - start[1], col - start[0])
++            heading_change = abs(math.atan2(
++                math.sin(desired_heading - current_yaw),
++                math.cos(desired_heading - current_yaw)))
++            score = gain / max(1.0, distance + 0.75 * heading_change + 1.0)
++            reachable.append((score, gain, distance, cell))
++        elif allow_bootstrap and reachable_cells:
++            # Bootstrap mode: frontier not Dijkstra-reachable, but find its
++            # distance to the NEAREST cell in the Dijkstra-reachable region.
++            # If close enough, treat it as a bootstrap target.
++            min_dist_to_reachable = float('inf')
++            for reachable_idx in reachable_cells:
++                r_col = reachable_idx % width
++                r_row = reachable_idx // width
++                dist = math.hypot(col - r_col, row - r_row)
++                if dist < min_dist_to_reachable:
++                    min_dist_to_reachable = dist
++            
++            # Only consider frontiers within ~1.0m (20 cells at 0.05m resolution)
++            # of the reachable region for bootstrap selection
++            if min_dist_to_reachable <= 20.0:
++                gain = 0
++                for cluster_col, cluster_row in cluster:
++                    neighborhood = grid[max(0, cluster_row - 2):min(height, cluster_row + 3),
++                                        max(0, cluster_col - 2):min(width, cluster_col + 3)]
++                    gain += int(np.count_nonzero(neighborhood == -1))
++                # Use Euclidean distance to nearest reachable cell as proxy distance
++                distance = min_dist_to_reachable
++                desired_heading = math.atan2(row - start[1], col - start[0])
++                heading_change = abs(math.atan2(
++                    math.sin(desired_heading - current_yaw),
++                    math.cos(desired_heading - current_yaw)))
++                score = gain / max(1.0, distance + 0.75 * heading_change + 1.0)
++                near_reachable.append((score, gain, distance, cell))
+ 
+     if active is not None:
+         active_distance = math.hypot(active[0] - start[0], active[1] - start[1]) * resolution
+@@ -285,10 +406,19 @@ def select_frontier(grid: np.ndarray, frontiers: np.ndarray,
+ 
+     eligible = [item for item in reachable
+                 if item[2] >= min_goal_distance]
++    
++    # Bootstrap fallback: if no strictly-reachable frontiers meet the distance
++    # requirement but we have near-reachable ones, use those instead.
++    if not eligible and allow_bootstrap and near_reachable:
++        eligible = near_reachable  # Near-reachable already have proxy distances
++
+     if not eligible:
+-        return None, 0.0, len(reachable)
++        total_reachable = len(reachable) + (len(near_reachable) if allow_bootstrap else 0)
++        return None, 0.0, total_reachable
++    
+     _, _, distance, target = max(eligible, key=lambda item: (item[0], item[1], -item[2]))
+-    return target, float(distance), len(reachable)
++    total_reachable = len(reachable) + (len(near_reachable) if allow_bootstrap else 0)
++    return target, float(distance), total_reachable
+ 
+ 
+ class FrontierExplorer(Node):
+@@ -389,7 +519,7 @@ class FrontierExplorer(Node):
+     def publish_empty_path(self, state):
+         msg = Path()
+         msg.header.stamp = self.get_clock().now().to_msg()
+-        msg.header.frame_id = 'odom'
++        msg.header.frame_id = self.map.header.frame_id if self.map is not None else 'odom'
+         self.path_pub.publish(msg)
+         status = String()
+         status.data = state
+@@ -464,13 +594,58 @@ class FrontierExplorer(Node):
+         pose = self.pose.pose.position
+         start_col = math.floor((pose.x - info.origin.position.x) / info.resolution)
+         start_row = math.floor((pose.y - info.origin.position.y) / info.resolution)
+-        start = nearest_free(grid, (start_col, start_row))
++
++        # If the robot's projected cell is outside the map boundary, the
++        # standard nearest_free search radius of 15 cells may snap to an
++        # isolated free cell at the map edge that has no path to the main
++        # explored region.  Scale the search radius to cover the out-of-bounds
++        # offset plus a margin so we always land in a well-connected cell.
++        col_clamped = max(0, min(info.width - 1, start_col))
++        row_clamped = max(0, min(info.height - 1, start_row))
++        oob_cells = math.hypot(start_col - col_clamped, start_row - row_clamped)
++        # 15-cell default covers normal in-bounds cases; add the out-of-bounds
++        # distance plus a 20-cell safety margin for borderline cases.
++        search_radius = max(15, int(math.ceil(oob_cells)) + 20)
++
++        start = nearest_free(grid, (start_col, start_row), radius=search_radius)
+         if start is None:
+             self.say_state('MAPPING')
+             self.publish_empty_path('WAITING_FOR_KNOWN_FREE_SPACE')
+             return
+ 
+         distances, parents = shortest_paths(grid, start)
++
++        # Connectivity check: SLAM's initial map creates many tiny isolated
++        # free-cell islands along individual laser beam paths before they grow
++        # into a connected navigable region.  If the nearest free cell belongs
++        # to a small island (Dijkstra reaches fewer than 10 cells), search the
++        # entire map for the largest well-connected free-space component and
++        # use the cell in it that is nearest to the robot as the start.
++        # This is architecturally sound — we are still doing proper Dijkstra
++        # reachability; we just pick a better start that actually represents
++        # the navigable space the robot will drive through.
++        min_connected_cells = 10
++        if len(distances) < min_connected_cells:
++            alt_start = find_best_connected_start(
++                grid, start_col, start_row, min_component_size=min_connected_cells)
++            if alt_start is not None and alt_start != start:
++                alt_distances, alt_parents = shortest_paths(grid, alt_start)
++                if len(alt_distances) > len(distances):
++                    self.get_logger().info(
++                        f'Start-cell upgraded: isolated island ({len(distances)} cells) '
++                        f'→ largest connected component ({len(alt_distances)} cells) '
++                        f'at map cell ({alt_start[0]},{alt_start[1]}) '
++                        f'world=({info.origin.position.x + (alt_start[0]+0.5)*info.resolution:.2f},'
++                        f'{info.origin.position.y + (alt_start[1]+0.5)*info.resolution:.2f})')
++                    start = alt_start
++                    distances = alt_distances
++                    parents = alt_parents
++
++        # Note: we no longer require a minimum Dijkstra-reachable region size.
++        # The bootstrap frontier selection (allow_bootstrap=True) will handle
++        # small reachable regions by selecting frontiers near (but not strictly
++        # IN) the reachable region, enabling initial exploration movement.
++
+         width = info.width
+         if self.mission_state == 'RETURNING_HOME' and self.mission_goal is not None:
+             target_col = math.floor((self.mission_goal.point.x - info.origin.position.x)
+@@ -543,6 +718,17 @@ class FrontierExplorer(Node):
+                 self.active_anchor = None
+                 self.publish_empty_path('GOAL_COMPLETED_SELECT_NEXT')
+                 return
++        # Enable bootstrap mode when the Dijkstra-reachable region is very small.
++        # This allows selecting frontiers near (but not strictly IN) the reachable
++        # region, enabling initial exploration movement that grows the map.
++        allow_bootstrap = (len(distances) < 50)
++        
++        self.get_logger().info(
++            f'Frontier selection: Dijkstra-reachable={len(distances)} cells, '
++            f'allow_bootstrap={allow_bootstrap}, '
++            f'frontiers={len(frontiers)} cells',
++            throttle_duration_sec=2.0)
++        
+         target, distance_m, reachable_count = select_frontier(
+             grid, frontiers, metric_distances, self.active, start, info.resolution,
+             min_goal_distance=0.20,
+@@ -559,7 +745,8 @@ class FrontierExplorer(Node):
+             duplicate_radius_cells=duplicate_radius_cells,
+             active_recovery_radius_cells=max(1, int(math.ceil(
+                 float(self.get_parameter('goal_distance_hysteresis_m').value)
+-                / info.resolution))))
++                / info.resolution))),
++            allow_bootstrap=allow_bootstrap)
+ 
+         if self.active is not None and self.active_goal_started is not None:
+             anchor = self.active_anchor or self.active
+@@ -604,7 +791,8 @@ class FrontierExplorer(Node):
+                     duplicate_radius_cells=duplicate_radius_cells,
+                     active_recovery_radius_cells=max(1, int(math.ceil(
+                         float(self.get_parameter('goal_distance_hysteresis_m').value)
+-                        / info.resolution))))
++                        / info.resolution))),
++                    allow_bootstrap=allow_bootstrap)
+ 
+         if target is None:
+             if self.active is not None:
+@@ -654,7 +842,7 @@ class FrontierExplorer(Node):
+         self.active = target
+         goal = PointStamped()
+         goal.header.stamp = self.get_clock().now().to_msg()
+-        goal.header.frame_id = 'odom'
++        goal.header.frame_id = info.header.frame_id if hasattr(info, 'header') else self.map.header.frame_id
+         goal.point.x = info.origin.position.x + (target[0] + 0.5) * info.resolution
+         goal.point.y = info.origin.position.y + (target[1] + 0.5) * info.resolution
+         self.goal_pub.publish(goal)
+@@ -709,7 +897,31 @@ class FrontierExplorer(Node):
+         self.goal_age_pub.publish(Float32(data=max(0.0, now - (self.active_goal_started or now))))
+         self.blacklist_count_pub.publish(Int32(data=len(self.blacklist)))
+         self.goal_reason_pub.publish(String(data=self.goal_change_reason))
+-        path = self.path_message(reconstruct_path(parents, target, width), info)
++        raw_path_cells = reconstruct_path(parents, target, width)
++        if not raw_path_cells:
++            # Bootstrap case: target is near but not strictly Dijkstra-reachable.
++            # Build a path from start toward the target using the deepest
++            # reachable cell along the heading to the target, then the goal.
++            # This gives goal_path_planner a non-empty map-frame path to follow.
++            target_index = target[1] * width + target[0]
++            if allow_bootstrap and target_index not in parents:
++                # Find the reachable cell closest to the target
++                best_cell = start
++                best_dist = math.hypot(target[0] - start[0], target[1] - start[1])
++                for idx in parents:
++                    c = idx % width
++                    r = idx // width
++                    d = math.hypot(target[0] - c, target[1] - r)
++                    if d < best_dist:
++                        best_dist = d
++                        best_cell = (c, r)
++                # Path: Dijkstra route to best_cell, then straight to target
++                intermediate_cells = reconstruct_path(parents, best_cell, width)
++                if intermediate_cells:
++                    raw_path_cells = intermediate_cells + [target]
++                else:
++                    raw_path_cells = [start, target]
++        path = self.path_message(raw_path_cells, info)
+         path.header = goal.header
+         self.path_pub.publish(path)
+         status = String()
+@@ -728,7 +940,9 @@ class FrontierExplorer(Node):
+     def path_message(self, cells, info):
+         path = Path()
+         path.header.stamp = self.get_clock().now().to_msg()
+-        path.header.frame_id = 'odom'
++        # Use the actual map frame so downstream consumers see consistent coordinates.
++        # With slam:=true this is 'map'; without SLAM it is 'odom'.
++        path.header.frame_id = self.map.header.frame_id if self.map is not None else 'odom'
+         for col, row in cells:
+             pose_msg = PoseStamped()
+             pose_msg.header = path.header
+diff --git a/src/sih26126_planner/sih26126_planner/goal_path_planner.py b/src/sih26126_planner/sih26126_planner/goal_path_planner.py
+index a4c85d2..bcd38c1 100755
+--- a/src/sih26126_planner/sih26126_planner/goal_path_planner.py
++++ b/src/sih26126_planner/sih26126_planner/goal_path_planner.py
+@@ -216,6 +216,12 @@ class GoalPathPlanner(Node):
+         self.declare_parameter('route_lookahead_m', 0.85)
+         self.declare_parameter('slowdown_distance_m', 1.5)
+         self.declare_parameter('minimum_near_goal_speed_ratio', 0.25)
++        # After this many seconds without a terrain score, use a conservative
++        # fallback score (0.5) rather than blocking indefinitely at WAITING_TERRAIN.
++        # This prevents a camera/traversability pipeline delay from permanently
++        # halting navigation when the robot can otherwise move safely.
++        self.declare_parameter('terrain_timeout_fallback_sec', 8.0)
++        self.declare_parameter('terrain_fallback_score', 0.5)
+ 
+         odom_topic = str(
+             self.get_parameter('odom_topic').value
+@@ -275,6 +281,10 @@ class GoalPathPlanner(Node):
+         self.latest_score: Optional[float] = None
+         self.score_stamp_ns = 0
+ 
++        # Track when we first started waiting for terrain so we can apply a
++        # fallback after terrain_timeout_fallback_sec without a real score.
++        self._terrain_wait_start_ns: int = 0
++
+         self.frames = 0
+ 
+         self.odom_sub = self.create_subscription(
+@@ -307,6 +317,18 @@ class GoalPathPlanner(Node):
+         self.global_path: Optional[Path] = None
+         self.has_goal = False
+ 
++        # Subscribe to the localization pose (map frame when SLAM is active).
++        # This allows the planner to follow a global path that is expressed in
++        # the map frame rather than the raw Gazebo odom frame, which would
++        # produce a PATH_FRAME_MISMATCH when slam:=true.
++        self.localization_pose_sub = self.create_subscription(
++            PoseStamped, '/localization/pose', self.localization_pose_callback, 10)
++        self.localization_x: Optional[float] = None
++        self.localization_y: Optional[float] = None
++        self.localization_yaw: Optional[float] = None
++        self.localization_frame = 'odom'
++        self.localization_stamp_ns = 0
++
+         self.path_pub = self.create_publisher(
+             Path,
+             '/planner/path',
+@@ -385,6 +407,22 @@ class GoalPathPlanner(Node):
+     def global_path_callback(self, msg: Path) -> None:
+         self.global_path = msg
+ 
++    def localization_pose_callback(self, msg: PoseStamped) -> None:
++        """Store the localization pose (map frame when SLAM is active)."""
++        pos = msg.pose.position
++        ori = msg.pose.orientation
++        values = (pos.x, pos.y, ori.x, ori.y, ori.z, ori.w)
++        if not all(math.isfinite(float(v)) for v in values):
++            return
++        self.localization_x = float(pos.x)
++        self.localization_y = float(pos.y)
++        self.localization_yaw = quaternion_to_yaw(
++            float(ori.x), float(ori.y), float(ori.z), float(ori.w))
++        frame_id = msg.header.frame_id
++        if frame_id:
++            self.localization_frame = frame_id
++        self.localization_stamp_ns = self.now_ns()
++
+     def now_ns(self) -> int:
+         """Return current ROS time in nanoseconds."""
+         return int(
+@@ -447,6 +485,8 @@ class GoalPathPlanner(Node):
+             min(1.0, value),
+         )
+         self.score_stamp_ns = self.now_ns()
++        # Reset the fallback wait timer whenever a real score arrives.
++        self._terrain_wait_start_ns = 0
+ 
+     def odom_is_fresh(self) -> bool:
+         """Return whether a recent odometry pose is available."""
+@@ -504,33 +544,57 @@ class GoalPathPlanner(Node):
+             self.publish_state('WAITING_FOR_MAP_ROUTE')
+             self.publish_zero_outputs()
+             return
+-        if not self.odom_is_fresh():
+-            self.publish_state(
+-                'WAITING_POSE'
+-            )
+-            self.publish_zero_outputs()
+-            return
++
++        # Select the pose source that is consistent with the global path frame.
++        # When SLAM is active the global path is in 'map' frame; the localization
++        # pose adapter also publishes in 'map' frame.  Using it here ensures that
++        # the robot's position and the path coordinates are in the same reference
++        # frame so distance/heading calculations are correct.
++        path_frame = (self.global_path.header.frame_id
++                      if self.global_path is not None and self.global_path.header.frame_id
++                      else self.odom_frame)
++        loc_frame_matches = (
++            self.localization_x is not None
++            and self.localization_frame == path_frame)
++        use_localization = loc_frame_matches and (
++            self.now_ns() - self.localization_stamp_ns) / 1e9 <= self.max_input_age_s
++
++        if use_localization:
++            current_x = self.localization_x
++            current_y = self.localization_y
++            current_yaw = self.localization_yaw
++            pose_frame = self.localization_frame
++        else:
++            if not self.odom_is_fresh():
++                self.publish_state('WAITING_POSE')
++                self.publish_zero_outputs()
++                return
++            current_x = self.current_x
++            current_y = self.current_y
++            current_yaw = self.current_yaw
++            pose_frame = self.odom_frame
+ 
+         if (self.global_path is not None and self.global_path.poses
+-                and self.global_path.header.frame_id and self.odom_frame
+-                and self.global_path.header.frame_id != self.odom_frame):
++                and self.global_path.header.frame_id
++                and pose_frame
++                and self.global_path.header.frame_id != pose_frame):
+             self.publish_state('PATH_FRAME_MISMATCH')
+             self.publish_zero_outputs()
+             return
+ 
+         distance = distance_to_goal(
+-            self.current_x,
+-            self.current_y,
++            current_x,
++            current_y,
+             self.goal_x,
+             self.goal_y,
+         )
+ 
+         path = build_straight_path(
+-            self.current_x,
+-            self.current_y,
++            current_x,
++            current_y,
+             self.goal_x,
+             self.goal_y,
+-            self.odom_frame,
++            pose_frame,
+             self.get_clock().now().to_msg(),
+             self.path_resolution_m,
+         )
+@@ -539,15 +603,15 @@ class GoalPathPlanner(Node):
+         # local selector receives the next map-derived waypoint as its goal.
+         if self.global_path is not None and self.global_path.poses:
+             target = route_lookahead_target(
+-                self.global_path, self.current_x, self.current_y,
++                self.global_path, current_x, current_y,
+                 float(self.get_parameter('route_lookahead_m').value))
+             if target is None:
+                 self.publish_state('WAITING_FOR_MAP_ROUTE')
+                 self.publish_zero_outputs()
+                 return
+             path = build_straight_path(
+-                self.current_x, self.current_y, target.x, target.y,
+-                self.odom_frame, self.get_clock().now().to_msg(),
++                current_x, current_y, target.x, target.y,
++                pose_frame, self.get_clock().now().to_msg(),
+                 self.path_resolution_m)
+ 
+         self.path_pub.publish(path)
+@@ -567,23 +631,40 @@ class GoalPathPlanner(Node):
+             return
+ 
+         if not self.terrain_is_fresh():
+-            self.publish_state(
+-                'WAITING_TERRAIN'
++            # Start timing how long we have been without terrain data.
++            if self._terrain_wait_start_ns == 0:
++                self._terrain_wait_start_ns = self.now_ns()
++            wait_elapsed_s = (self.now_ns() - self._terrain_wait_start_ns) / 1e9
++            fallback_timeout = float(
++                self.get_parameter('terrain_timeout_fallback_sec').value)
++            if wait_elapsed_s < fallback_timeout:
++                self.publish_state('WAITING_TERRAIN')
++                self.publish_zero_outputs()
++                return
++            # Terrain pipeline has been absent too long — use a conservative
++            # fallback score so navigation is not permanently blocked.
++            fallback = float(self.get_parameter('terrain_fallback_score').value)
++            effective_score = max(0.0, min(1.0, fallback))
++            self.get_logger().warn(
++                f'Terrain score absent for {wait_elapsed_s:.1f}s; '
++                f'using fallback score={effective_score:.2f}',
++                throttle_duration_sec=10.0,
+             )
+-            self.publish_zero_outputs()
+-            return
++        else:
++            effective_score = self.latest_score
++            self._terrain_wait_start_ns = 0  # reset timer once terrain is fresh
+ 
+         target_heading = math.atan2(
+-            self.goal_y - self.current_y,
+-            self.goal_x - self.current_x,
++            self.goal_y - current_y,
++            self.goal_x - current_x,
+         )
+ 
+         heading_error = wrap_angle(
+-            target_heading - self.current_yaw
++            target_heading - current_yaw
+         )
+ 
+         base_speed = score_to_speed(
+-            self.latest_score,
++            effective_score,
+             self.max_speed_mps,
+             0.30,
+             0.70,
+@@ -641,10 +722,10 @@ class GoalPathPlanner(Node):
+         if self.frames % 10 == 0:
+             self.get_logger().info(
+                 f'frames={self.frames} '
+-                f'pose=({self.current_x:.2f},'
+-                f'{self.current_y:.2f}) '
++                f'pose=({current_x:.2f},'
++                f'{current_y:.2f}) '
+                 f'distance={distance:.2f} m '
+-                f'terrain_score={self.latest_score:.3f} '
++                f'terrain_score={effective_score:.3f} '
+                 f'state={state} '
+                 f'speed={linear_speed:.3f} m/s '
+                 f'yaw_rate={angular_speed:.3f} rad/s'
+diff --git a/src/sih26126_planner/sih26126_planner/local_path_selector.py b/src/sih26126_planner/sih26126_planner/local_path_selector.py
+index 6da1bb8..859e8b4 100644
+--- a/src/sih26126_planner/sih26126_planner/local_path_selector.py
++++ b/src/sih26126_planner/sih26126_planner/local_path_selector.py
+@@ -565,6 +565,13 @@ class LocalPathSelector(Node):
+         self.autonomy_mode_received_at: Optional[float] = None
+         self.localization_confidence: float = 1.0
+ 
++        # Localization pose for map-frame path following (when SLAM is active,
++        # the global path is in 'map' frame; using the localization pose here
++        # ensures pose and path are in the same reference frame).
++        self.localization_pose: Optional[object] = None
++        self.localization_pose_received_at: Optional[float] = None
++        self.localization_frame: str = 'odom'
++
+         # Keep edge candidates inside the depth camera's ~±30° horizontal
+         # field of view so the rover can steer around obstacles that fill the
+         # narrower center candidates without treating unseen space as clear.
+@@ -645,6 +652,12 @@ class LocalPathSelector(Node):
+             self.localization_confidence_callback,
+             10,
+         )
++        self.localization_pose_sub = self.create_subscription(
++            PoseStamped,
++            '/localization/pose',
++            self.localization_pose_callback,
++            10,
++        )
+ 
+         self.local_path_pub = self.create_publisher(
+             Path,
+@@ -751,6 +764,18 @@ class LocalPathSelector(Node):
+         """Store localization confidence for risk assessment."""
+         self.localization_confidence = max(0.0, min(1.0, float(msg.data)))
+ 
++    def localization_pose_callback(self, msg: PoseStamped) -> None:
++        """Store the map-frame pose for path following when SLAM is active."""
++        pos = msg.pose.position
++        ori = msg.pose.orientation
++        if not all(math.isfinite(float(v)) for v in (
++                pos.x, pos.y, ori.x, ori.y, ori.z, ori.w)):
++            return
++        self.localization_pose = msg.pose
++        self.localization_pose_received_at = time.monotonic()
++        if msg.header.frame_id:
++            self.localization_frame = msg.header.frame_id
++
+     def publish_stop(self, state: str) -> None:
+         """Publish zero advisory motion."""
+         state_msg = String()
+@@ -875,7 +900,31 @@ class LocalPathSelector(Node):
+ 
+         path_frame = self.global_path.header.frame_id
+         pose_frame = self.odom.header.frame_id
+-        if path_frame and pose_frame and path_frame != pose_frame:
++
++        # When SLAM is active, the global path arrives in 'map' frame but
++        # odometry is in 'odom' frame.  Select the localization pose (map
++        # frame) when the path frame matches it so goal angles are computed
++        # in a consistent reference frame.
++        max_sensor_age = float(
++            self.get_parameter('max_sensor_age_s').value
++        )
++        now = time.monotonic()
++
++        use_localization_pose = (
++            path_frame
++            and self.localization_frame == path_frame
++            and self.localization_pose is not None
++            and input_is_fresh(self.localization_pose_received_at, max_sensor_age, now)
++        )
++
++        if use_localization_pose:
++            effective_pose = self.localization_pose
++            effective_frame = self.localization_frame
++        else:
++            effective_pose = self.odom.pose.pose
++            effective_frame = pose_frame
++
++        if path_frame and effective_frame and path_frame != effective_frame:
+             self.publish_stop('PATH_POSE_FRAME_MISMATCH')
+             return
+ 
+@@ -886,10 +935,6 @@ class LocalPathSelector(Node):
+             self.publish_stop('WAITING_FOR_LIDAR')
+             return
+ 
+-        max_sensor_age = float(
+-            self.get_parameter('max_sensor_age_s').value
+-        )
+-        now = time.monotonic()
+         for received_at, state in (
+             (self.pointcloud_received_at, 'STALE_DEPTH'),
+             (self.scan_received_at, 'STALE_LIDAR'),
+@@ -905,10 +950,8 @@ class LocalPathSelector(Node):
+             self.publish_stop('INVALID_SCORE_MAP')
+             return
+ 
+-        pose = self.odom.pose.pose.position
+-        yaw = quaternion_to_yaw(
+-            self.odom.pose.pose.orientation
+-        )
++        pose = effective_pose.position
++        yaw = quaternion_to_yaw(effective_pose.orientation)
+ 
+         goal = self.global_path.poses[-1].pose.position
+         goal_angle = goal_angle_from_pose(
+diff --git a/src/sih26126_safety/sih26126_safety/degraded_autonomy.py b/src/sih26126_safety/sih26126_safety/degraded_autonomy.py
+index 7a1073b..ef9d01a 100644
+--- a/src/sih26126_safety/sih26126_safety/degraded_autonomy.py
++++ b/src/sih26126_safety/sih26126_safety/degraded_autonomy.py
+@@ -82,6 +82,12 @@ class DegradedAutonomyManager(Node):
+         self._recovery_hyst = float(
+             self.get_parameter('recovery_hysteresis_sec').value)
+ 
++        # Startup grace period: don't enter DEGRADED_SENSOR for missing LiDAR
++        # health until this many seconds have elapsed. This prevents false
++        # degradation while the LiDAR health monitor is still starting up.
++        self._startup_time = time.monotonic()
++        self._startup_grace_sec = 15.0
++
+         # --- State ---
+         self._current_mode = 'FULL_AUTONOMY'
+         self._mode_entered_at = time.monotonic()
+@@ -172,10 +178,13 @@ class DegradedAutonomyManager(Node):
+             elif self._lidar_healthy is False:
+                 degradations.append('lidar_unhealthy')
+                 target_mode = _higher_priority(target_mode, 'DEGRADED_SENSOR')
+-        elif self._lidar_health_time is None:
+-            # Never received — assume sensor absent
+-            degradations.append('lidar_no_data')
+-            target_mode = _higher_priority(target_mode, 'DEGRADED_SENSOR')
++        else:
++            # Never received lidar health. Only degrade after the startup grace
++            # period has elapsed — the health monitor may still be starting up.
++            uptime = now - self._startup_time
++            if uptime >= self._startup_grace_sec:
++                degradations.append('lidar_no_data')
++                target_mode = _higher_priority(target_mode, 'DEGRADED_SENSOR')
+ 
+         # --- Check: localization confidence ---
+         if self._loc_confidence is not None:
