@@ -58,10 +58,10 @@ class SlamActivator(Node):
         """Initialise the activator node."""
         super().__init__('slam_activator')
 
-        self.declare_parameter('service_timeout_sec', 30.0)
-        self.declare_parameter('call_timeout_sec', 10.0)
-        self.declare_parameter('retry_interval_sec', 1.0)
-        self.declare_parameter('max_retries', 10)
+        self.declare_parameter('service_timeout_sec', 60.0)
+        self.declare_parameter('call_timeout_sec', 15.0)
+        self.declare_parameter('retry_interval_sec', 2.0)
+        self.declare_parameter('max_retries', 30)
 
         self._service_timeout = float(
             self.get_parameter('service_timeout_sec').value
@@ -212,10 +212,26 @@ class SlamActivator(Node):
             )
             return
 
-        # Read the initial state.
-        state_id, state_label = self._get_state()
+        # Read the initial state.  With use_sim_time=True, slam_toolbox may
+        # be blocked waiting for /clock when the activator first calls it.
+        # Retry until we get a valid response (up to max_retries attempts).
+        state_id = None
+        state_label = None
+        for attempt in range(1, self._max_retries + 1):
+            state_id, state_label = self._get_state()
+            if state_id is not None:
+                break
+            self.get_logger().warn(
+                f'Failed to read slam_toolbox initial state '
+                f'(attempt {attempt}/{self._max_retries}); retrying...'
+            )
+            time.sleep(self._retry_interval)
+
         if state_id is None:
-            self.get_logger().error('Failed to read slam_toolbox initial state')
+            self.get_logger().error(
+                f'Failed to read slam_toolbox initial state after '
+                f'{self._max_retries} attempts — giving up'
+            )
             return
 
         self.get_logger().info(

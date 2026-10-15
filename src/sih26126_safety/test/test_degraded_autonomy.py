@@ -1,6 +1,10 @@
 """Unit tests for the DRISTHI degraded autonomy state machine."""
 # Covers: mode priority, _higher_priority arbitration, capability scores.
 
+import inspect
+import re
+
+from sih26126_safety import degraded_autonomy as _da_module
 from sih26126_safety.degraded_autonomy import (
     _higher_priority,
     _MODE_PRIORITY,
@@ -187,3 +191,46 @@ class TestDegradationAggregation:
         """RETURN_HOME should not be overridden by FULL_AUTONOMY."""
         result = _higher_priority('RETURN_HOME', 'FULL_AUTONOMY')
         assert result == 'RETURN_HOME'
+
+
+# ---------------------------------------------------------------------------
+# Startup grace period – structural check
+# These tests verify the DegradedAutonomyManager carries the correct logic
+# for distinguishing "sensor not yet initialized" from "sensor stale/failed".
+# We inspect the source directly since the Node requires a live ROS context.
+# ---------------------------------------------------------------------------
+
+
+class TestStartupGracePeriod:
+    """Verify the startup grace period is present and architecturally sound."""
+
+    def test_startup_grace_source_present(self):
+        """The manager must contain a startup grace period for lidar_no_data."""
+        src = inspect.getsource(_da_module.DegradedAutonomyManager._tick)
+        assert '_startup_grace_sec' in src, (
+            '_tick must reference _startup_grace_sec to enforce grace period')
+        assert '_startup_time' in src, (
+            '_tick must reference _startup_time to measure uptime')
+
+    def test_startup_grace_does_not_suppress_later_staleness(self):
+        """
+        Stale LiDAR health message after grace must still produce DEGRADED_SENSOR.
+
+        This ensures the grace period only covers the 'never received' case,
+        not a genuine sensor dropout that happens after startup.
+        """
+        src = inspect.getsource(_da_module.DegradedAutonomyManager._tick)
+        # lidar_health_time being set (not None) means we are past init;
+        # the stale check must still fire in that branch.
+        assert 'lidar_age > self._lidar_stale' in src, (
+            'Runtime LiDAR staleness check must remain in the tick loop')
+
+    def test_grace_period_long_enough(self):
+        """Grace period must be at least 10 seconds to cover slow startups."""
+        src = inspect.getsource(_da_module.DegradedAutonomyManager.__init__)
+        # Extract the numeric constant assigned to _startup_grace_sec
+        match = re.search(r'_startup_grace_sec\s*=\s*([0-9.]+)', src)
+        assert match is not None, '_startup_grace_sec must be set in __init__'
+        grace = float(match.group(1))
+        assert grace >= 10.0, (
+            f'Grace period {grace}s is too short; must be at least 10s')

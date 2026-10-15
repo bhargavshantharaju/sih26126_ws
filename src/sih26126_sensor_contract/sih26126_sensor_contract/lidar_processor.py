@@ -29,6 +29,7 @@ from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan, PointCloud2
 from sih26126_msgs.msg import SensorHealth
+import tf2_ros
 
 
 def pointcloud2_to_xyz(msg: PointCloud2):
@@ -105,7 +106,12 @@ class LidarProcessor(Node):
         self.declare_parameter('range_min', 0.2)
         self.declare_parameter('range_max', 20.0)
         self.declare_parameter('vertical_tolerance_deg', 5.0)
-        self.declare_parameter('stale_timeout_sec', 1.0)
+        # Stale detection: report LiDAR as stale if no PointCloud2 received
+        # within this wall-clock interval.  Default 2.0s accommodates WSL2
+        # simulation where Gazebo may run at RTF < 1.0 and the ROS bridge
+        # delivery can lag.  A 1.0s timeout produced frequent false DEGRADED_SENSOR
+        # transitions even while the system was actively navigating.
+        self.declare_parameter('stale_timeout_sec', 2.0)
         self.declare_parameter('min_valid_ratio', 0.05)
 
         self._lidar_frame = str(self.get_parameter('lidar_frame').value)
@@ -122,6 +128,15 @@ class LidarProcessor(Node):
         self._last_cloud_time: float | None = None
         self._sample_count: int = 0
         self._last_valid_ratio: float = 0.0
+
+        # TF readiness gate: hold scans until odom->base_link exists.
+        # SLAM's MessageFilter requires odom->base_link TF at the scan's
+        # sim-timestamp. If scans are published before the EKF has established
+        # that transform, the filter queue fills and all scans are dropped,
+        # preventing map->odom from ever being published.
+        self._odom_tf_ready: bool = False
+        self._tf_buffer = tf2_ros.Buffer()
+        self._tf_listener = tf2_ros.TransformListener(self._tf_buffer, self)
 
         # Subscribers
         self._cloud_sub = self.create_subscription(
@@ -147,6 +162,27 @@ class LidarProcessor(Node):
         """Process incoming 3D point cloud and publish 2D scan."""
         self._last_cloud_time = time.monotonic()
         self._sample_count += 1
+
+        # Gate: do not emit scans until odom->base_link TF is available.
+        # SLAM requires this transform at the scan's sim-timestamp; publishing
+        # scans before it exists fills the MessageFilter queue and causes all
+        # scans to be dropped ('queue is full' or 'earlier than transform cache').
+        if not self._odom_tf_ready:
+            try:
+                self._tf_buffer.lookup_transform(
+                    'odom', 'base_link',
+                    rclpy.time.Time(),
+                    timeout=rclpy.duration.Duration(seconds=0.0),
+                )
+                self._odom_tf_ready = True
+                self.get_logger().info(
+                    'odom->base_link TF available — starting scan publication'
+                )
+            except tf2_ros.LookupException:
+                return
+            except (tf2_ros.ConnectivityException,
+                    tf2_ros.ExtrapolationException):
+                return
 
         try:
             pts = self._fast_extract_xyz(msg)

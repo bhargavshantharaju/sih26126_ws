@@ -216,6 +216,12 @@ class GoalPathPlanner(Node):
         self.declare_parameter('route_lookahead_m', 0.85)
         self.declare_parameter('slowdown_distance_m', 1.5)
         self.declare_parameter('minimum_near_goal_speed_ratio', 0.25)
+        # After this many seconds without a terrain score, use a conservative
+        # fallback score (0.5) rather than blocking indefinitely at WAITING_TERRAIN.
+        # This prevents a camera/traversability pipeline delay from permanently
+        # halting navigation when the robot can otherwise move safely.
+        self.declare_parameter('terrain_timeout_fallback_sec', 8.0)
+        self.declare_parameter('terrain_fallback_score', 0.5)
 
         odom_topic = str(
             self.get_parameter('odom_topic').value
@@ -275,6 +281,10 @@ class GoalPathPlanner(Node):
         self.latest_score: Optional[float] = None
         self.score_stamp_ns = 0
 
+        # Track when we first started waiting for terrain so we can apply a
+        # fallback after terrain_timeout_fallback_sec without a real score.
+        self._terrain_wait_start_ns: int = 0
+
         self.frames = 0
 
         self.odom_sub = self.create_subscription(
@@ -306,6 +316,18 @@ class GoalPathPlanner(Node):
         self.mission_state = ''
         self.global_path: Optional[Path] = None
         self.has_goal = False
+
+        # Subscribe to the localization pose (map frame when SLAM is active).
+        # This allows the planner to follow a global path that is expressed in
+        # the map frame rather than the raw Gazebo odom frame, which would
+        # produce a PATH_FRAME_MISMATCH when slam:=true.
+        self.localization_pose_sub = self.create_subscription(
+            PoseStamped, '/localization/pose', self.localization_pose_callback, 10)
+        self.localization_x: Optional[float] = None
+        self.localization_y: Optional[float] = None
+        self.localization_yaw: Optional[float] = None
+        self.localization_frame = 'odom'
+        self.localization_stamp_ns = 0
 
         self.path_pub = self.create_publisher(
             Path,
@@ -385,6 +407,22 @@ class GoalPathPlanner(Node):
     def global_path_callback(self, msg: Path) -> None:
         self.global_path = msg
 
+    def localization_pose_callback(self, msg: PoseStamped) -> None:
+        """Store the localization pose (map frame when SLAM is active)."""
+        pos = msg.pose.position
+        ori = msg.pose.orientation
+        values = (pos.x, pos.y, ori.x, ori.y, ori.z, ori.w)
+        if not all(math.isfinite(float(v)) for v in values):
+            return
+        self.localization_x = float(pos.x)
+        self.localization_y = float(pos.y)
+        self.localization_yaw = quaternion_to_yaw(
+            float(ori.x), float(ori.y), float(ori.z), float(ori.w))
+        frame_id = msg.header.frame_id
+        if frame_id:
+            self.localization_frame = frame_id
+        self.localization_stamp_ns = self.now_ns()
+
     def now_ns(self) -> int:
         """Return current ROS time in nanoseconds."""
         return int(
@@ -447,6 +485,8 @@ class GoalPathPlanner(Node):
             min(1.0, value),
         )
         self.score_stamp_ns = self.now_ns()
+        # Reset the fallback wait timer whenever a real score arrives.
+        self._terrain_wait_start_ns = 0
 
     def odom_is_fresh(self) -> bool:
         """Return whether a recent odometry pose is available."""
@@ -504,33 +544,58 @@ class GoalPathPlanner(Node):
             self.publish_state('WAITING_FOR_MAP_ROUTE')
             self.publish_zero_outputs()
             return
-        if not self.odom_is_fresh():
-            self.publish_state(
-                'WAITING_POSE'
-            )
-            self.publish_zero_outputs()
-            return
+
+        # Select the pose source that is consistent with the global path frame.
+        # When SLAM is active the global path is in 'map' frame; the localization
+        # pose adapter also publishes in 'map' frame.  Using it here ensures that
+        # the robot's position and the path coordinates are in the same reference
+        # frame so distance/heading calculations are correct.
+        path_frame = (self.global_path.header.frame_id
+                      if self.global_path is not None and self.global_path.header.frame_id
+                      else self.odom_frame)
+        loc_frame_matches = (
+            self.localization_x is not None
+            and self.localization_frame == path_frame)
+        _loc_age_s = (self.now_ns() - self.localization_stamp_ns) / 1e9
+        use_localization = loc_frame_matches and (
+            0.0 <= _loc_age_s <= self.max_input_age_s)
+
+        if use_localization:
+            current_x = self.localization_x
+            current_y = self.localization_y
+            current_yaw = self.localization_yaw
+            pose_frame = self.localization_frame
+        else:
+            if not self.odom_is_fresh():
+                self.publish_state('WAITING_POSE')
+                self.publish_zero_outputs()
+                return
+            current_x = self.current_x
+            current_y = self.current_y
+            current_yaw = self.current_yaw
+            pose_frame = self.odom_frame
 
         if (self.global_path is not None and self.global_path.poses
-                and self.global_path.header.frame_id and self.odom_frame
-                and self.global_path.header.frame_id != self.odom_frame):
+                and self.global_path.header.frame_id
+                and pose_frame
+                and self.global_path.header.frame_id != pose_frame):
             self.publish_state('PATH_FRAME_MISMATCH')
             self.publish_zero_outputs()
             return
 
         distance = distance_to_goal(
-            self.current_x,
-            self.current_y,
+            current_x,
+            current_y,
             self.goal_x,
             self.goal_y,
         )
 
         path = build_straight_path(
-            self.current_x,
-            self.current_y,
+            current_x,
+            current_y,
             self.goal_x,
             self.goal_y,
-            self.odom_frame,
+            pose_frame,
             self.get_clock().now().to_msg(),
             self.path_resolution_m,
         )
@@ -539,15 +604,15 @@ class GoalPathPlanner(Node):
         # local selector receives the next map-derived waypoint as its goal.
         if self.global_path is not None and self.global_path.poses:
             target = route_lookahead_target(
-                self.global_path, self.current_x, self.current_y,
+                self.global_path, current_x, current_y,
                 float(self.get_parameter('route_lookahead_m').value))
             if target is None:
                 self.publish_state('WAITING_FOR_MAP_ROUTE')
                 self.publish_zero_outputs()
                 return
             path = build_straight_path(
-                self.current_x, self.current_y, target.x, target.y,
-                self.odom_frame, self.get_clock().now().to_msg(),
+                current_x, current_y, target.x, target.y,
+                pose_frame, self.get_clock().now().to_msg(),
                 self.path_resolution_m)
 
         self.path_pub.publish(path)
@@ -567,23 +632,40 @@ class GoalPathPlanner(Node):
             return
 
         if not self.terrain_is_fresh():
-            self.publish_state(
-                'WAITING_TERRAIN'
+            # Start timing how long we have been without terrain data.
+            if self._terrain_wait_start_ns == 0:
+                self._terrain_wait_start_ns = self.now_ns()
+            wait_elapsed_s = (self.now_ns() - self._terrain_wait_start_ns) / 1e9
+            fallback_timeout = float(
+                self.get_parameter('terrain_timeout_fallback_sec').value)
+            if wait_elapsed_s < fallback_timeout:
+                self.publish_state('WAITING_TERRAIN')
+                self.publish_zero_outputs()
+                return
+            # Terrain pipeline has been absent too long — use a conservative
+            # fallback score so navigation is not permanently blocked.
+            fallback = float(self.get_parameter('terrain_fallback_score').value)
+            effective_score = max(0.0, min(1.0, fallback))
+            self.get_logger().warn(
+                f'Terrain score absent for {wait_elapsed_s:.1f}s; '
+                f'using fallback score={effective_score:.2f}',
+                throttle_duration_sec=10.0,
             )
-            self.publish_zero_outputs()
-            return
+        else:
+            effective_score = self.latest_score
+            self._terrain_wait_start_ns = 0  # reset timer once terrain is fresh
 
         target_heading = math.atan2(
-            self.goal_y - self.current_y,
-            self.goal_x - self.current_x,
+            self.goal_y - current_y,
+            self.goal_x - current_x,
         )
 
         heading_error = wrap_angle(
-            target_heading - self.current_yaw
+            target_heading - current_yaw
         )
 
         base_speed = score_to_speed(
-            self.latest_score,
+            effective_score,
             self.max_speed_mps,
             0.30,
             0.70,
@@ -641,10 +723,10 @@ class GoalPathPlanner(Node):
         if self.frames % 10 == 0:
             self.get_logger().info(
                 f'frames={self.frames} '
-                f'pose=({self.current_x:.2f},'
-                f'{self.current_y:.2f}) '
+                f'pose=({current_x:.2f},'
+                f'{current_y:.2f}) '
                 f'distance={distance:.2f} m '
-                f'terrain_score={self.latest_score:.3f} '
+                f'terrain_score={effective_score:.3f} '
                 f'state={state} '
                 f'speed={linear_speed:.3f} m/s '
                 f'yaw_rate={angular_speed:.3f} rad/s'

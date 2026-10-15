@@ -35,3 +35,12 @@ Thumbs.db
 *.before_*
 src/sih26126_sim/models/sih_ugv_gimbal/
 src/sih26126_sim/worlds/gimbal_test.sdf
+
+# Ad-hoc session test scripts (not part of the package test suite)
+test_rotation.sh
+test_rotation_direction.py
+test_rotation_right.py
+test_rotation_simple.py
+
+# Patch snapshots (changes are applied in source; patch files are redundant)
+*.patch

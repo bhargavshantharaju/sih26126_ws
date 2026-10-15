@@ -1,8 +1,12 @@
 # Local planar wheel odometry + IMU filter. SLAM remains the map->odom owner.
 ekf_filter_node:
   ros__parameters:
-    frequency: 30.0
-    sensor_timeout: 0.1
+    # Reduced from 30 to 20 Hz to reduce CPU contention under WSL2.
+    # 30 Hz was triggering "Failed to meet update rate" errors when SLAM and
+    # Gazebo were also running on the same host.  20 Hz is adequate for
+    # odom->base_link TF publication with IMU at 100 Hz and odometry at ~17 Hz.
+    frequency: 20.0
+    sensor_timeout: 0.5
     two_d_mode: true
 
     map_frame: map

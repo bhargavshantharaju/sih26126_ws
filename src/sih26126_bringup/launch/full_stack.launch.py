@@ -76,7 +76,7 @@ def generate_launch_description():
     scenario = LaunchConfiguration('scenario')
     # Backward compatibility: dynamic_obstacle_demo is deprecated but still supported
     dynamic_obstacle_demo = LaunchConfiguration('dynamic_obstacle_demo')
-
+    gui_stream = LaunchConfiguration('gui_stream')
     # Determine if we're running the dynamic obstacle scenario
     # Support both new scenario:= and legacy dynamic_obstacle_demo:= parameters
     is_dynamic_obstacle = PythonExpression([
@@ -154,35 +154,50 @@ def generate_launch_description():
         'dynamic_obstacle_demo', default_value='false',
         description='[Deprecated] Use scenario:= instead. Enable Objective 4 scenario.',
     )
+    gui_stream_arg = DeclareLaunchArgument(
+        'gui_stream', default_value='false',
+        description=(
+            'Embed the Gazebo GUI inside the DRISTHI browser dashboard. '
+            'Requires: xvfb, x11vnc, websockify, novnc.  '
+            'Starts gz sim -g on a virtual display and streams it via noVNC.  '
+            'All traffic is localhost-only; the Gazebo simulation server must '
+            'already be running (gazebo_headless or gui).  '
+            'View at http://localhost:<dashboard_port> in the Gazebo Simulator panel.'
+        ),
+    )
 
     # --------------------------------------------------------------- Gazebo
     gazebo_gui = ExecuteProcess(
         cmd=[gz, 'sim', '-r', world],
         condition=IfCondition(gui),
         cwd=sim_share,
-        additional_env={'GZ_SIM_RESOURCE_PATH': sim_share},
+        additional_env={'GZ_SIM_RESOURCE_PATH': f'{sim_share}/models'},
         output='screen',
     )
     gazebo_headless = ExecuteProcess(
         cmd=[gz, 'sim', '-s', '-r', world],
         condition=UnlessCondition(gui),
         cwd=sim_share,
-        additional_env={'GZ_SIM_RESOURCE_PATH': sim_share},
+        additional_env={'GZ_SIM_RESOURCE_PATH': f'{sim_share}/models'},
         output='screen',
     )
 
     # ---------------------------------------------------------------- bridge
+    # /clock MUST be explicitly bridged. ros_gz_bridge does NOT automatically
+    # bridge /clock. Without this entry all nodes with use_sim_time=True block
+    # indefinitely waiting for ROS time and no sensors, SLAM, EKF, or planner
+    # output will flow.
     bridge = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
         name='sih26126_bridge',
         output='screen',
         arguments=[
+            '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
             '/imu@sensor_msgs/msg/Imu[gz.msgs.IMU',
             '/camera@sensor_msgs/msg/Image[gz.msgs.Image',
             '/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo',
             '/depth_camera/points@sensor_msgs/msg/PointCloud2[gz.msgs.PointCloudPacked',
-            '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
             '/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist',
             '/model/sih_ugv/odometry@nav_msgs/msg/Odometry[gz.msgs.Odometry',
             '/ugv_contacts@ros_gz_interfaces/msg/Contacts[gz.msgs.Contacts',
@@ -540,9 +555,27 @@ def generate_launch_description():
         additional_env={'DRISTHI_DASHBOARD_PORT': dashboard_port},
     )
 
+    # Gazebo GUI streaming: virtual display + x11vnc + websockify + noVNC
+    # Connects gz sim -g to the already-running Gazebo server (headless or GUI).
+    # Does NOT create a second world or robot.  All traffic stays on localhost.
+    gz_gui_stream_node = Node(
+        package='sih26126_dashboard',
+        executable='gz_gui_stream',
+        name='gz_gui_stream',
+        output='screen',
+        parameters=[{
+            'vnc_port': 5900,
+            'websocket_port': 6080,
+            'virtual_display': ':99',
+            'resolution': '1280x800x24',
+        }],
+        condition=IfCondition(gui_stream),
+    )
+
     return LaunchDescription([
         world_arg, dashboard_port_arg, start_dashboard_arg,
         gui_arg, slam_arg, fusion_arg, scenario_arg,
+        gui_stream_arg,
         exploration_radius_arg, frontier_threshold_arg,
         minimum_completed_frontiers_arg, minimum_explored_area_arg,
         mission_name_arg, mission_timeout_arg, dynamic_obstacle_demo_arg,
@@ -573,6 +606,7 @@ def generate_launch_description():
         # T+7s — sensors, mapping, activators
         TimerAction(period=7.0, actions=[
             dashboard,
+            gz_gui_stream_node,       # gui_stream=true: Gazebo GUI → noVNC → dashboard
             sensor_contract,
             lidar_monitor,
             scan_relay,

@@ -13,6 +13,7 @@ from sih26126_planner.goal_path_planner import (
     route_lookahead_target,
     wrap_angle,
 )
+from sih26126_planner.planner_baseline import score_to_speed
 
 
 def test_quaternion_zero_yaw():
@@ -161,3 +162,40 @@ def test_route_lookahead_uses_nearby_map_waypoint_not_far_goal():
     assert target is not None
     assert target.x == 1.0
     assert target.y == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Terrain fallback regression tests
+# The fallback score of 0.5 must produce a conservative (non-zero, non-max)
+# speed, confirming neither a stop nor an unsafe full-speed command.
+# ---------------------------------------------------------------------------
+
+
+def test_terrain_fallback_score_gives_conservative_speed():
+    """Fallback score 0.5 yields a positive but well-below-max speed."""
+    max_speed = 0.30
+    fallback_score = 0.5  # configured terrain_fallback_score default
+    speed = score_to_speed(fallback_score, max_speed, stop_threshold=0.30,
+                           slow_threshold=0.70)
+    # Must be > 0 (navigation is not blocked)
+    assert speed > 0.0, 'Fallback should not stop navigation'
+    # Must be well below max speed (conservative — terrain is unknown)
+    assert speed <= max_speed * 0.5, (
+        f'Fallback speed {speed:.3f} must be at most 50% of max {max_speed}')
+
+
+def test_terrain_fallback_score_does_not_exceed_good_terrain_speed():
+    """A fallback score (0.5) gives less speed than a good terrain score (0.9)."""
+    max_speed = 0.30
+    fallback_speed = score_to_speed(0.5, max_speed)
+    good_speed = score_to_speed(0.9, max_speed)
+    assert fallback_speed < good_speed, (
+        'Fallback score must yield less speed than confidently good terrain')
+
+
+def test_terrain_stop_threshold_blocks_navigation():
+    """A score below the stop threshold must yield zero speed."""
+    max_speed = 0.30
+    speed = score_to_speed(0.25, max_speed, stop_threshold=0.30)
+    assert math.isclose(speed, 0.0), (
+        'Score below stop_threshold must produce zero speed')

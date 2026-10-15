@@ -108,7 +108,7 @@ class MissionManager(Node):
         self.declare_parameter('mission_name', 'autonomous_outdoor_mission')
         self.declare_parameter('max_pose_speed_mps', 2.0)
         self.declare_parameter('pose_jump_margin_m', 0.10)
-        self.declare_parameter('frontier_exhaustion_grace_sec', 3.0)
+        self.declare_parameter('frontier_exhaustion_grace_sec', 15.0)
         self.declare_parameter('home_route_unavailable_timeout_sec', 3.0)
         self.pose = None
         self.raw_pose = None

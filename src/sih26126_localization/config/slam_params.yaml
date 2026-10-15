@@ -21,13 +21,22 @@ slam_toolbox:
     use_sim_time: true
 
     debug_logging: false
-    throttle_scans: 1
+    # throttle_scans: 1 means process every scan; 2 means every-other-scan (5 Hz).
+    # At 10 Hz LiDAR + WSL2 overhead, throttle_scans=1 fills the MessageFilter
+    # queue faster than SLAM processes it.  Processing at ~5 Hz reduces queue
+    # pressure and prevents repeated "discarding message because the queue is full"
+    # drops that prevent the map from updating.
+    throttle_scans: 2
     transform_publish_period: 0.02 #if 0 never publishes odometry
-    map_update_interval: 5.0
+    map_update_interval: 2.0
     resolution: 0.05
     restamp_tf: false
     min_laser_range: 0.2 #match LiDAR spec
     max_laser_range: 20.0 #match LiDAR spec
+    # minimum_time_interval controls the minimum elapsed sim-time between
+    # keyframes.  With minimum_travel_distance=0.0 and minimum_travel_heading=0.0,
+    # scans are accepted purely on time.  At 0.5s this allows ~2 keyframes/sec
+    # while the robot is stationary, which is sufficient to build an initial map.
     minimum_time_interval: 0.5
     transform_timeout: 0.2
     tf_buffer_duration: 30.0
@@ -37,8 +46,15 @@ slam_toolbox:
     # General Parameters - tuned for outdoor navigation
     use_scan_matching: true
     use_scan_barycenter: true
-    minimum_travel_distance: 0.3  # reduced for smaller robot
-    minimum_travel_heading: 0.3   # reduced for tighter turns
+    # Set to 0.0 to allow map growth while the robot is stationary at startup.
+    # The startup deadlock was: robot stopped → SLAM travel thresholds not met →
+    # map never grows past the initial 7×7 keyframe → no frontiers → no goal →
+    # planner waits → safety supervisor stays STOPPED → deadlock.
+    # With 0.0 thresholds SLAM accepts new scans purely based on minimum_time_interval
+    # (0.5s).  Once the robot starts moving these thresholds become irrelevant
+    # because any motion exceeds them quickly.
+    minimum_travel_distance: 0.0
+    minimum_travel_heading: 0.0
     check_min_dist_and_heading_precisely: false
     scan_buffer_size: 10
     scan_buffer_maximum_scan_distance: 10.0

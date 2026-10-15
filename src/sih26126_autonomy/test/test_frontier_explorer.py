@@ -6,6 +6,7 @@ from sih26126_autonomy.frontier_explorer import (
     exploration_mode,
     cluster_frontiers,
     filter_frontiers_by_radius,
+    find_best_connected_start,
     goal_completion_reason,
     merge_nearby_clusters,
     merge_frontier_array,
@@ -154,6 +155,139 @@ class FrontierExplorerTests(unittest.TestCase):
                          'REACHED_WITH_NEW_MAP_CELLS')
         self.assertEqual(goal_completion_reason(0.2, 0.45, 0, 1, False),
                          'REACHED_FRONTIER_CLOSED_BY_MAP_UPDATE')
+
+    # ------------------------------------------------------------------
+    # Bootstrap safety regression tests (Points 1-3 of safety review)
+    # ------------------------------------------------------------------
+
+    def test_disconnected_component_not_used_as_path_origin(self):
+        """find_best_connected_start must not be used as a drop-in start
+        replacement when it returns a cell in a physically disconnected
+        component.  This test verifies the *utility function* itself by
+        checking that Dijkstra from the component it selects does NOT reach
+        the robot's actual island — confirming disconnectedness.  The fix in
+        process() gates on len(distances) < 10 and returns early rather than
+        substituting a cell from an unreachable component.
+        """
+        # Two isolated 3×3 free squares separated by a wall of occupied cells.
+        # Robot is in the top-left square (col 1-3, row 1-3).
+        # A larger 4×4 free square exists at col 6-9, row 1-4.
+        grid = np.full((12, 12), -1, dtype=np.int8)
+        # Robot's small island: 9 cells
+        grid[1:4, 1:4] = 0
+        # Larger disconnected island: 16 cells
+        grid[1:5, 6:10] = 0
+
+        robot_col, robot_row = 2, 2   # centre of small island
+        alt_start = find_best_connected_start(grid, robot_col, robot_row,
+                                              min_component_size=10)
+
+        # find_best_connected_start should select a cell from the LARGER island
+        # (since the small one is < min_component_size=10).
+        self.assertIsNotNone(alt_start)
+        self.assertIn(alt_start[0], range(6, 10),
+                      'alt_start should be in the large disconnected island (cols 6-9)')
+
+        # Dijkstra from the robot's start must NOT reach alt_start — they are
+        # disconnected.  This is the key safety invariant: substituting alt_start
+        # as the navigation start would imply a false route.
+        robot_start = nearest_free(grid, (robot_col, robot_row))
+        distances, _ = shortest_paths(grid, robot_start)
+        alt_index = alt_start[1] * grid.shape[1] + alt_start[0]
+        self.assertNotIn(alt_index, distances,
+                         'Disconnected component must not be reachable from robot island')
+
+    def test_unreachable_frontier_not_promoted_to_goal(self):
+        """select_frontier must not return a frontier whose representative cell
+        is absent from the Dijkstra distances dict, regardless of its Euclidean
+        closeness to the reachable region.
+        """
+        # Free corridor: row 2, cols 1-5.  Robot start at (1,2).
+        # Frontier at (8,2) is NOT free and therefore not reachable.
+        grid = np.full((6, 12), -1, dtype=np.int8)
+        grid[2, 1:6] = 0   # navigable strip
+
+        start = (1, 2)
+        distances, _ = shortest_paths(grid, start)
+
+        # Confirm the frontier cell is genuinely not reachable
+        frontier_cell = (8, 2)
+        frontier_index = frontier_cell[1] * grid.shape[1] + frontier_cell[0]
+        self.assertNotIn(frontier_index, distances)
+
+        # Build a candidates array with only the unreachable cell
+        candidates = np.array([[2, 8]])  # (row, col)
+        target, dist, count = select_frontier(
+            grid, candidates, distances, None, start, 0.05,
+            min_goal_distance=0.0)
+
+        self.assertIsNone(target,
+                          'Unreachable frontier must not be promoted to a goal')
+        self.assertEqual(count, 0)
+
+    def test_valid_dijkstra_path_contains_only_free_cells(self):
+        """A path produced by reconstruct_path must visit only grid==0 cells.
+        This is the baseline safety invariant that the fixes preserve: valid
+        connected paths are unaffected and remain occupancy-safe.
+        """
+        # L-shaped free region
+        grid = np.full((10, 10), -1, dtype=np.int8)
+        grid[1, 1:8] = 0   # horizontal arm
+        grid[1:8, 7] = 0   # vertical arm
+
+        start = nearest_free(grid, (1, 1))
+        distances, parents = shortest_paths(grid, start)
+
+        goal_cell = (7, 7)
+        path = reconstruct_path(parents, goal_cell, grid.shape[1])
+
+        self.assertGreater(len(path), 0, 'Valid goal must produce a non-empty path')
+        self.assertEqual(path[0], start)
+        self.assertEqual(path[-1], goal_cell)
+
+        for col, row in path:
+            self.assertEqual(
+                grid[row, col], 0,
+                f'Path cell ({col},{row}) is not free (value={grid[row, col]})')
+
+    def test_select_frontier_returns_only_reachable_goals(self):
+        """select_frontier must never return a frontier cell that is not present
+        in the distances dict, even when many unreachable frontiers exist.
+        The test mixes reachable and unreachable frontier cells to confirm only
+        the reachable ones can be selected.
+        """
+        # Free region: rows 2-7, cols 2-7 (36 free cells)
+        grid = np.full((12, 12), -1, dtype=np.int8)
+        grid[2:8, 2:8] = 0
+
+        start = (2, 2)
+        distances, _ = shortest_paths(grid, start)
+
+        # Reachable frontier at edge of free region touching unknown (col 8 = -1)
+        # Add a thin ring of unknown outside the free area so (7,5) is a real frontier.
+        # (7,5) is free and adjacent to unknown at col 8.
+        reachable_frontier = (7, 5)
+        # Unreachable frontier deep in unknown space
+        unreachable_frontier = (10, 10)
+
+        # Confirm reachable is in distances, unreachable is not
+        r_idx = reachable_frontier[1] * grid.shape[1] + reachable_frontier[0]
+        u_idx = unreachable_frontier[1] * grid.shape[1] + unreachable_frontier[0]
+        self.assertIn(r_idx, distances)
+        self.assertNotIn(u_idx, distances)
+
+        candidates = np.array([[5, 7], [10, 10]])  # (row, col)
+        target, dist, count = select_frontier(
+            grid, candidates, distances, None, start, 0.05,
+            min_goal_distance=0.0)
+
+        # Must select only the reachable frontier
+        self.assertIsNotNone(target)
+        self.assertEqual(target, reachable_frontier,
+                         'Only the Dijkstra-reachable frontier must be returned')
+        t_idx = target[1] * grid.shape[1] + target[0]
+        self.assertIn(t_idx, distances,
+                      'Selected target must be present in Dijkstra distances')
 
 
 if __name__ == '__main__':

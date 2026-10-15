@@ -178,6 +178,83 @@ def nearest_free(grid: np.ndarray, start: Cell, radius: int = 15) -> Optional[Ce
     return int(candidates[idx, 1]), int(candidates[idx, 0])
 
 
+def find_best_connected_start(grid: np.ndarray, robot_col: int, robot_row: int,
+                               min_component_size: int = 50) -> Optional[Cell]:
+    """Find a start cell in the largest well-connected free-space component.
+
+    SLAM's initial map often has isolated single-cell free islands separated
+    by unknown space along individual laser beams.  The nearest free cell to
+    the robot may belong to one of these tiny islands, causing Dijkstra to
+    reach fewer than ``min_component_size`` cells and report no reachable
+    frontiers.
+
+    This function BFS-enumerates all 8-connected free-space components, then
+    returns the cell in the *best* component (largest that is also closest to
+    the robot) that is nearest to the robot's projected map position.  When
+    the map is mature and the robot is already inside a large free region the
+    nearest free cell will already satisfy the size threshold and this
+    function is not needed — it is only called as a fallback when Dijkstra
+    from the standard start reaches fewer than ``min_component_size`` cells.
+    """
+    height, width = grid.shape
+    free_rows, free_cols = np.where(grid == 0)
+    if not len(free_rows):
+        return None
+
+    visited: set = set()
+    components: list = []
+
+    for i in range(len(free_rows)):
+        r, c = int(free_rows[i]), int(free_cols[i])
+        if (c, r) in visited:
+            continue
+        comp: list = []
+        queue = [(c, r)]
+        visited.add((c, r))
+        while queue:
+            col, row = queue.pop()
+            comp.append((col, row))
+            for dx, dy in NEIGHBORS:
+                nx, ny = col + dx, row + dy
+                if ((nx, ny) not in visited
+                        and 0 <= ny < height
+                        and 0 <= nx < width
+                        and grid[ny, nx] == 0):
+                    visited.add((nx, ny))
+                    queue.append((nx, ny))
+        components.append(comp)
+
+    if not components:
+        return None
+
+    # Score each component: prefer large components that are close to the robot.
+    # Minimum size filter: ignore noise islands below the threshold.
+    large = [c for c in components if len(c) >= min_component_size]
+    if not large:
+        # Fall back to the largest component regardless of size
+        large = [max(components, key=len)]
+
+    best_comp = None
+    best_cell = None
+    best_score = math.inf  # lower is better
+
+    for comp in large:
+        cols = np.array([cell[0] for cell in comp])
+        rows = np.array([cell[1] for cell in comp])
+        dists = (cols - robot_col) ** 2 + (rows - robot_row) ** 2
+        nearest_idx = int(np.argmin(dists))
+        nearest_dist = float(dists[nearest_idx])
+        # Combined score: penalise distance, reward size (log scale to avoid
+        # over-preferring distant huge components over close medium ones).
+        score = nearest_dist / math.log(max(2, len(comp)))
+        if score < best_score:
+            best_score = score
+            best_comp = comp
+            best_cell = (int(cols[nearest_idx]), int(rows[nearest_idx]))
+
+    return best_cell
+
+
 def shortest_paths(grid: np.ndarray, start: Cell):
     """Run Dijkstra over known-free cells and return distances and parents."""
     width, height = grid.shape[1], grid.shape[0]
@@ -241,11 +318,19 @@ def select_frontier(grid: np.ndarray, frontiers: np.ndarray,
                     blacklist_radius_cells: float = 0.0,
                     duplicate_radius_cells: float = 0.0,
                     active_recovery_radius_cells: int = 3) -> Tuple[Optional[Cell], float, int]:
-    """Select an informative reachable frontier cluster with goal hysteresis."""
+    """Select an informative reachable frontier cluster with goal hysteresis.
+
+    Only frontiers whose representative cell is present in the Dijkstra
+    ``distances`` dict (i.e. reachable from ``start`` through contiguous
+    known-free cells) are considered.  Frontiers that are unreachable by
+    Dijkstra are silently skipped regardless of their Euclidean proximity to
+    the reachable region; Euclidean closeness does not imply traversability.
+    """
     height, width = grid.shape
     reachable = []
     clusters = merge_nearby_clusters(
         cluster_frontiers(frontiers, minimum_cluster_size), duplicate_radius_cells)
+
     for cluster in clusters:
         center_col = sum(cell[0] for cell in cluster) / len(cluster)
         center_row = sum(cell[1] for cell in cluster) / len(cluster)
@@ -257,20 +342,21 @@ def select_frontier(grid: np.ndarray, frontiers: np.ndarray,
                              for blocked in blacklist):
             continue
         index = row * width + col
-        if index not in distances:
-            continue
-        distance = float(distances[index])
-        gain = 0
-        for cluster_col, cluster_row in cluster:
-            neighborhood = grid[max(0, cluster_row - 2):min(height, cluster_row + 3),
-                                max(0, cluster_col - 2):min(width, cluster_col + 3)]
-            gain += int(np.count_nonzero(neighborhood == -1))
-        desired_heading = math.atan2(row - start[1], col - start[0])
-        heading_change = abs(math.atan2(
-            math.sin(desired_heading - current_yaw),
-            math.cos(desired_heading - current_yaw)))
-        score = gain / max(1.0, distance + 0.75 * heading_change + 1.0)
-        reachable.append((score, gain, distance, cell))
+
+        # Standard reachability check: frontier must be in Dijkstra distances
+        if index in distances:
+            distance = float(distances[index])
+            gain = 0
+            for cluster_col, cluster_row in cluster:
+                neighborhood = grid[max(0, cluster_row - 2):min(height, cluster_row + 3),
+                                    max(0, cluster_col - 2):min(width, cluster_col + 3)]
+                gain += int(np.count_nonzero(neighborhood == -1))
+            desired_heading = math.atan2(row - start[1], col - start[0])
+            heading_change = abs(math.atan2(
+                math.sin(desired_heading - current_yaw),
+                math.cos(desired_heading - current_yaw)))
+            score = gain / max(1.0, distance + 0.75 * heading_change + 1.0)
+            reachable.append((score, gain, distance, cell))
 
     if active is not None:
         active_distance = math.hypot(active[0] - start[0], active[1] - start[1]) * resolution
@@ -285,8 +371,10 @@ def select_frontier(grid: np.ndarray, frontiers: np.ndarray,
 
     eligible = [item for item in reachable
                 if item[2] >= min_goal_distance]
+
     if not eligible:
         return None, 0.0, len(reachable)
+
     _, _, distance, target = max(eligible, key=lambda item: (item[0], item[1], -item[2]))
     return target, float(distance), len(reachable)
 
@@ -389,7 +477,7 @@ class FrontierExplorer(Node):
     def publish_empty_path(self, state):
         msg = Path()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = 'odom'
+        msg.header.frame_id = self.map.header.frame_id if self.map is not None else 'odom'
         self.path_pub.publish(msg)
         status = String()
         status.data = state
@@ -464,13 +552,50 @@ class FrontierExplorer(Node):
         pose = self.pose.pose.position
         start_col = math.floor((pose.x - info.origin.position.x) / info.resolution)
         start_row = math.floor((pose.y - info.origin.position.y) / info.resolution)
-        start = nearest_free(grid, (start_col, start_row))
+
+        # If the robot's projected cell is outside the map boundary, the
+        # standard nearest_free search radius of 15 cells may snap to an
+        # isolated free cell at the map edge that has no path to the main
+        # explored region.  Scale the search radius to cover the out-of-bounds
+        # offset plus a margin so we always land in a well-connected cell.
+        col_clamped = max(0, min(info.width - 1, start_col))
+        row_clamped = max(0, min(info.height - 1, start_row))
+        oob_cells = math.hypot(start_col - col_clamped, start_row - row_clamped)
+        # 15-cell default covers normal in-bounds cases; add the out-of-bounds
+        # distance plus a 20-cell safety margin for borderline cases.
+        search_radius = max(15, int(math.ceil(oob_cells)) + 20)
+
+        start = nearest_free(grid, (start_col, start_row), radius=search_radius)
         if start is None:
             self.say_state('MAPPING')
             self.publish_empty_path('WAITING_FOR_KNOWN_FREE_SPACE')
             return
 
         distances, parents = shortest_paths(grid, start)
+
+        # Connectivity check: SLAM's initial map creates many tiny isolated
+        # free-cell islands along individual laser beam paths before they grow
+        # into a connected navigable region.  If Dijkstra from the nearest
+        # free cell reaches fewer than min_connected_cells cells the map is
+        # not yet mature enough to plan a safe route.
+        #
+        # Do NOT substitute a start cell from a different (larger) connected
+        # component elsewhere on the map.  That component may be physically
+        # separated from the robot by walls or unknown space; any path
+        # originating there would falsely imply the robot can reach it,
+        # potentially causing the planner to command motion toward an
+        # unreachable region.  Fail safely instead and wait for SLAM to
+        # build a connected free region around the robot.
+        min_connected_cells = 10
+        if len(distances) < min_connected_cells:
+            self.get_logger().info(
+                f'Reachable region too small ({len(distances)} cells < '
+                f'{min_connected_cells}); waiting for SLAM to grow free space.',
+                throttle_duration_sec=2.0)
+            self.say_state('MAPPING')
+            self.publish_empty_path('WAITING_FOR_CONNECTED_FREE_SPACE')
+            return
+
         width = info.width
         if self.mission_state == 'RETURNING_HOME' and self.mission_goal is not None:
             target_col = math.floor((self.mission_goal.point.x - info.origin.position.x)
@@ -543,6 +668,7 @@ class FrontierExplorer(Node):
                 self.active_anchor = None
                 self.publish_empty_path('GOAL_COMPLETED_SELECT_NEXT')
                 return
+
         target, distance_m, reachable_count = select_frontier(
             grid, frontiers, metric_distances, self.active, start, info.resolution,
             min_goal_distance=0.20,
@@ -654,7 +780,7 @@ class FrontierExplorer(Node):
         self.active = target
         goal = PointStamped()
         goal.header.stamp = self.get_clock().now().to_msg()
-        goal.header.frame_id = 'odom'
+        goal.header.frame_id = self.map.header.frame_id
         goal.point.x = info.origin.position.x + (target[0] + 0.5) * info.resolution
         goal.point.y = info.origin.position.y + (target[1] + 0.5) * info.resolution
         self.goal_pub.publish(goal)
@@ -709,8 +835,8 @@ class FrontierExplorer(Node):
         self.goal_age_pub.publish(Float32(data=max(0.0, now - (self.active_goal_started or now))))
         self.blacklist_count_pub.publish(Int32(data=len(self.blacklist)))
         self.goal_reason_pub.publish(String(data=self.goal_change_reason))
-        path = self.path_message(reconstruct_path(parents, target, width), info)
-        path.header = goal.header
+        raw_path_cells = reconstruct_path(parents, target, width)
+        path = self.path_message(raw_path_cells, info)
         self.path_pub.publish(path)
         status = String()
         status.data = 'AVAILABLE' if path.poses else 'NO_PATH'
@@ -728,7 +854,9 @@ class FrontierExplorer(Node):
     def path_message(self, cells, info):
         path = Path()
         path.header.stamp = self.get_clock().now().to_msg()
-        path.header.frame_id = 'odom'
+        # Use the actual map frame so downstream consumers see consistent coordinates.
+        # With slam:=true this is 'map'; without SLAM it is 'odom'.
+        path.header.frame_id = self.map.header.frame_id if self.map is not None else 'odom'
         for col, row in cells:
             pose_msg = PoseStamped()
             pose_msg.header = path.header
