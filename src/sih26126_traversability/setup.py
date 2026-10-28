@@ -35,6 +35,8 @@ setup(
             'sih26126_traversability.traversability_baseline:main',
             'terrain_aware_traversability = '
             'sih26126_traversability.terrain_aware_traversability:main',
+            'terrain_memory = '
+            'sih26126_traversability.terrain_memory:main',
         ],
     },
 )

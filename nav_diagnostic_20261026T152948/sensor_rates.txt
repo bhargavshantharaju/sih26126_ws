@@ -1,0 +1,21 @@
+=== Sensor Rates ===
+average rate: 3.150
+	min: 0.045s max: 1.070s std dev: 0.32372s window: 7
+average rate: 3.624
+	min: 0.045s max: 1.070s std dev: 0.28107s window: 10
+average rate: 7.182
+	min: 0.058s max: 0.386s std dev: 0.09067s window: 10
+average rate: 8.377
+	min: 0.030s max: 0.261s std dev: 0.06657s window: 10
+average rate: 6.926
+	min: 0.058s max: 0.275s std dev: 0.07156s window: 10
+average rate: 6.280
+	min: 0.058s max: 0.305s std dev: 0.09489s window: 10
+depth_camera/points: not publishing
+lidar/scan_2d: not publishing
+WARNING: topic [/traversability/terrain_aware_mean_score] does not appear to be published yet
+average rate: 2.353
+	min: 0.362s max: 0.475s std dev: 0.04074s window: 4
+traversability: not publishing
+WARNING: topic [/odometry/filtered] does not appear to be published yet
+odometry/filtered: not publishing

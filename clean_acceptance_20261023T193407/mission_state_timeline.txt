@@ -1,0 +1,22 @@
+[19:34:28] timeout
+[19:34:33]  REPLANNING
+[19:34:36] timeout
+[19:34:41] timeout
+[19:34:45] timeout
+[19:34:50] timeout
+[19:34:54] timeout
+[19:35:00] timeout
+[19:35:04]  EXPLORING
+timeout
+[19:35:08] timeout
+[19:35:12] timeout
+[19:35:17] timeout
+[19:35:21] timeout
+[19:35:25] timeout
+[19:35:29] timeout
+[19:35:34]  EXPLORING
+timeout
+[19:35:38] timeout
+[19:35:42] timeout
+[19:35:46] timeout
+[19:35:51] timeout

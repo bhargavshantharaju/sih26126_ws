@@ -1,0 +1,76 @@
+POSE PIPELINE DIAGNOSIS - Test #2 (Visual Odom Disabled)
+=========================================================
+
+## Pipeline Components Verified
+
+1. GROUND TRUTH (Gazebo)
+   - Topic: /model/sih_ugv/odometry
+   - Source: Gazebo simulation bridge
+   - Status: Active throughout test
+
+2. WHEEL ODOMETRY (Simulator → EKF)
+   - Topic: /model/sih_ugv/odometry (bridged as odom0)
+   - EKF Config: X, Y position enabled
+   - Status: Verified as EKF input
+
+3. IMU (Simulator → EKF)
+   - Topic: /fusion/imu (bridged as imu0)
+   - EKF Config: Yaw and yaw rate enabled
+   - Status: Verified as EKF input
+
+4. VISUAL ODOMETRY (DISABLED)
+   - Topic: /fusion/visual_odometry (was odom1)
+   - Status: DISABLED in ekf_params.yaml
+   - Reason: Caused drift/instability
+
+5. EKF OUTPUT
+   - Topic: /odometry/filtered
+   - Transform: odom → base_link
+   - Status: Active, providing stable odometry
+
+6. SLAM TRANSFORM
+   - Transform: map → odom
+   - Source: slam_toolbox
+   - Status: Stable (only 1 discontinuity in 90s)
+
+7. SLAM POSE ADAPTER
+   - Input: map → base_link TF lookup
+   - Output: /localization/pose (PoseStamped in map frame)
+   - Timestamp: self.get_clock().now() with monotonic guard
+   - Status: Working correctly (positive elapsed times)
+
+8. MISSION MANAGER
+   - Input: /localization/pose
+   - Validation: max_pose_speed=2.5 m/s, margin=0.10 m
+   - Output: pose_discontinuity events on threshold breach
+   - Status: Correctly rejecting 1 implausible event, accepting normal motion
+
+## Key Findings
+
+✅ Monotonic timestamps: All elapsed times positive (0.025s - 0.100s range)
+✅ Pose validation: Only 1 discontinuity (0.349m in 0.025s), not consecutive
+✅ EKF stability: No visual odom drift, clean wheel+IMU fusion
+✅ SLAM stability: map→odom corrections minimal without visual odom errors
+✅ Mission acceptance: Robot continued operation, no SAFE_STOP
+
+## Discontinuity Detail
+
+Single event at T+~85s:
+- Delta: 0.349 m
+- Elapsed: 0.025 s
+- Velocity: 0.349/0.025 = 13.96 m/s
+- Threshold: 2.5*0.025 + 0.10 = 0.1625 m
+- Result: Correctly flagged as implausible
+- Consequence: 1 of 3 consecutive needed, no SAFE_STOP triggered
+
+This single event likely represents a brief SLAM loop closure or scan match
+adjustment. The fact that it was isolated (not consecutive) indicates the
+underlying EKF odom→base_link remained stable without visual odom drift.
+
+## Conclusion
+
+The pose pipeline is WORKING CORRECTLY:
+- Ground truth → wheel odom → EKF → odom→base_link: STABLE
+- Scan data → SLAM → map→odom: STABLE (without visual odom interference)
+- SLAM → adapter → localization pose: MONOTONIC TIMESTAMPS
+- Localization → mission manager: CORRECT VALIDATION

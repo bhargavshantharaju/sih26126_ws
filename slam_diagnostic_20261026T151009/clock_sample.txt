@@ -1,0 +1,5 @@
+A message was lost!!!
+	total count change:10
+	total count: 10---
+clock:
+  sec: 19

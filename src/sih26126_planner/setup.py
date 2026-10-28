@@ -30,6 +30,8 @@ setup(
             'sih26126_planner.local_path_selector:main',
             'planner_baseline = '
             'sih26126_planner.planner_baseline:main',
+            'cost_map_fusion = '
+            'sih26126_planner.cost_map_fusion:main',
         ],
     },
 )

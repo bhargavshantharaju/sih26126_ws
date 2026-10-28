@@ -21,15 +21,40 @@ slam_toolbox:
     use_sim_time: true
 
     debug_logging: false
-    throttle_scans: 1
+    # throttle_scans: 1 means process every scan; 2 means every-other-scan (5 Hz).
+    # At 10 Hz LiDAR + WSL2 overhead, throttle_scans=1 fills the MessageFilter
+    # queue faster than SLAM processes it.  Processing at ~5 Hz reduces queue
+    # pressure and prevents repeated "discarding message because the queue is full"
+    # drops that prevent the map from updating.
+    # MUST remain 2: regression test test_throttle_scans_unchanged enforces this.
+    # Setting to 3 reduces scan rate too much, slowing map growth at low RTF.
+    throttle_scans: 2
     transform_publish_period: 0.02 #if 0 never publishes odometry
-    map_update_interval: 5.0
+    map_update_interval: 2.0
     resolution: 0.05
     restamp_tf: false
     min_laser_range: 0.2 #match LiDAR spec
     max_laser_range: 20.0 #match LiDAR spec
+    # minimum_time_interval controls the minimum elapsed sim-time between
+    # keyframes.  With minimum_travel_distance=0.0 and minimum_travel_heading=0.0,
+    # scans are accepted purely on time.  MUST be <= 0.5s to allow ~2 keyframes/sec
+    # for initial map growth while the robot is stationary at startup.
+    # Values > 0.5s slow map growth too much at low RTF (regression test enforced).
     minimum_time_interval: 0.5
-    transform_timeout: 0.2
+    # transform_timeout controls how long (sim-time seconds) the MessageFilter
+    # waits for odom->base_link TF to become available at a scan's exact timestamp.
+    # Clock type: transform_timeout is sim-time (tf2_ros::Buffer uses the node's
+    # RCL_ROS_TIME clock via CreateTimerROS when use_sim_time=true).
+    # Root cause (2026-10-21): at WSL2 RTF≈0.35, the EKF runs at 20 Hz wall
+    # ≈ 7 Hz sim-time (period ≈ 0.143s sim).  The old 0.2s sim timeout gave
+    # only ~1.4 EKF sim-frames — marginal and insufficient when startup ordering
+    # delays the first EKF TF publication by even one frame.  With
+    # scan_buffer_size=10 and throttle_scans=2 (~5 Hz sim), all 10 queue slots
+    # filled within ~2 sim-seconds and every subsequent scan was dropped
+    # ("queue is full"), preventing map growth.
+    # Fix: 1.0s sim-time gives ~7 EKF sim-frames at RTF=0.35, reliably covering
+    # any startup ordering delays in the first TF publication.
+    transform_timeout: 1.0
     tf_buffer_duration: 30.0
     stack_size_to_use: 40000000 #// program needs a larger stack size to serialize large maps
     enable_interactive_mode: true
@@ -37,10 +62,30 @@ slam_toolbox:
     # General Parameters - tuned for outdoor navigation
     use_scan_matching: true
     use_scan_barycenter: true
-    minimum_travel_distance: 0.3  # reduced for smaller robot
-    minimum_travel_heading: 0.3   # reduced for tighter turns
+    # minimum_travel_distance and minimum_travel_heading MUST be 0.0.
+    #
+    # Non-zero values create a startup deadlock:
+    #   robot stationary → travel threshold not met → SLAM never accepts keyframe
+    #   → map never grows → no frontiers → no exploration goal → robot stays stopped
+    #
+    # With 0.0, SLAM accepts keyframes based on minimum_time_interval alone,
+    # enabling map growth and frontier detection while the robot is stationary
+    # at startup.  The robot then receives an exploration goal, begins moving,
+    # and SLAM continues to update normally.
+    #
+    # Regression test test_zero_travel_thresholds_allow_stationary_startup enforces 0.0.
+    # The pose-jitter concern that motivated the 0.05 change is better addressed
+    # by the slam_pose_adapter's monotonic timestamp handling and mission_manager's
+    # consecutive-discontinuity threshold (3 consecutive jumps before SAFE_STOP).
+    minimum_travel_distance: 0.0
+    minimum_travel_heading: 0.0
     check_min_dist_and_heading_precisely: false
-    scan_buffer_size: 10
+    # scan_buffer_size increased from 10 to 50: gives the MessageFilter more
+    # slots so startup scans (which arrive before the first map keyframe
+    # is accepted) can wait in the queue rather than being immediately dropped.
+    # With transform_timeout=1.0s and throttle_scans=3, this provides ~15s of
+    # buffer time during startup before queue overflow.
+    scan_buffer_size: 50
     scan_buffer_maximum_scan_distance: 10.0
     link_match_minimum_response_fine: 0.1
     link_scan_maximum_distance: 1.5

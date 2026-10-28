@@ -1,0 +1,2 @@
+data: '{"collision_detected": null, "contact_sensor_stream_seen": false, "distance_travelled_m": 4.033623431229367, "exploration_comple...'
+---

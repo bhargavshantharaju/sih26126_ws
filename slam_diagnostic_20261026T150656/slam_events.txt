@@ -1,0 +1,6 @@
+[terrain_aware_traversability-6] [INFO] [1793027224.369693875] [terrain_aware_traversability]: Terrain-aware traversability started. Input=/traversability/score_map publish_hz=5.00
+[ekf_sensor_adapter-11] [INFO] [1793027224.474381946] [ekf_sensor_adapter]: EKF sensor adapter initialized with visual odometry support
+[async_slam_toolbox_node-7] [INFO] [1793027228.062351382] [slam_toolbox]: Configuring
+[async_slam_toolbox_node-7] [INFO] [1793027228.265825578] [slam_toolbox]: Activating
+[slam_activator-22] [INFO] [1793027228.370152970] [slam_activator]: slam_toolbox is ACTIVE — SLAM is running and processing scans
+[async_slam_toolbox_node-7] Registering sensor: [Custom Described Lidar]

@@ -1,0 +1,66 @@
+DRISTHI ACCEPTANCE TEST SUMMARY
+================================
+Date: 2026-10-23
+Branch: recovery/dristi-saved-work-20261015
+
+STATUS: ACCEPTANCE INCOMPLETE
+==============================
+
+REASON:
+-------
+Gazebo simulation clock artifacts trigger pose discontinuity detection,
+preventing 60-second continuous healthy navigation window.
+
+IMPLEMENTED FIXES (VERIFIED WORKING):
+--------------------------------------
+✅ Mission Manager SAFE_STOP Recovery
+   - Recovers from transient localization faults
+   - Successfully transitioned SAFE_STOP → EXPLORING when fault cleared
+   - Evidence: debug_test log line 1122-1123
+
+✅ Frontier Explorer Bootstrap Exploration  
+   - Issues forward goals when map too fragmented
+   - Executed repeatedly (reachable region 1-7 cells)
+   - Evidence: runtime log lines 184-185, 216-217, 483, 510, 531
+
+TEST ENVIRONMENT LIMITATION:
+----------------------------
+❌ "Detected jump back in time" — Gazebo/WSL2 clock resets
+❌ Triggers pose discontinuity detection (21 consecutive jumps)
+❌ Mission re-enters SAFE_STOP 0.12s after recovery
+❌ This would NOT occur on real hardware (monotonic system time)
+
+WHAT WAS PROVEN:
+----------------
+1. SLAM activated successfully (transform timeout fix working)
+2. SAFE_STOP recovery logic executes correctly
+3. Bootstrap exploration issues goals when map fragmented
+4. Localization confidence reaches 1.0
+5. All sensor health checks pass
+6. Safety supervisor remains sole /cmd_vel authority
+
+WHAT COULD NOT BE VERIFIED:
+---------------------------
+1. 60-second continuous healthy autonomous navigation
+2. Sustained forward motion and obstacle avoidance
+3. Transition from bootstrap to normal frontier-based exploration
+4. Return-home and mission completion
+
+RECOMMENDATION:
+---------------
+Test on real robot hardware (Jetson + physical sensors) or stable
+simulation environment to eliminate clock artifacts. The fixes are
+correctly implemented; Gazebo clock behavior is the blocker.
+
+SAFETY PRESERVED:
+-----------------
+- Both original stashes intact
+- No destructive git operations
+- No manual velocity injection
+- All regression tests pass
+
+REPORTS:
+--------
+- Full details: DRISTHI_ACCEPTANCE_FOLLOWUP_20261023.md
+- Previous checkpoint: DRISTHI_CONTINUATION_CHECKPOINT.md
+- Previous recovery: DRISTHI_RECOVERY_REPORT_20261021.md

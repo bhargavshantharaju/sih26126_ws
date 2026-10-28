@@ -1,0 +1,3 @@
+=== Capturing local_navigation_state ===
+data: STALE_LIDAR
+---

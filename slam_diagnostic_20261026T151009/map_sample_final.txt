@@ -1,0 +1,30 @@
+header:
+  stamp:
+    sec: 46
+    nanosec: 300000000
+  frame_id: map
+info:
+  map_load_time:
+    sec: 0
+    nanosec: 0
+  resolution: 0.05000000074505806
+  width: 550
+  height: 499
+  origin:
+    position:
+      x: -11.516800374090646
+      y: -12.388561763104345
+      z: 0.0
+    orientation:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+data:
+- -1
+- -1
+- -1
+- -1
+- -1
+- -1
+- -1

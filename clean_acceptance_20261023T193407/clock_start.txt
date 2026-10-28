@@ -1,0 +1,10 @@
+A message was lost!!!
+	total count change:9
+	total count: 9---
+A message was lost!!!
+	total count change:1
+	total count: 10---
+clock:
+  sec: 12
+  nanosec: 507000000
+---

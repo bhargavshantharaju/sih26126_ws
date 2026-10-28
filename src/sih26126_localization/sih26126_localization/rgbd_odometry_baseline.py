@@ -9,10 +9,15 @@ import math
 from typing import Optional
 
 import cv2
+
 from geometry_msgs.msg import PoseStamped
+
+from nav_msgs.msg import Odometry
+
 import numpy as np
 import rclpy
 from rclpy.node import Node
+
 from sensor_msgs.msg import CameraInfo, Image, PointCloud2
 
 
@@ -587,9 +592,14 @@ class RGBDOdometryBaseline(Node):
             10,
         )
 
-        self.pose_pub = self.create_publisher(
-            PoseStamped,
-            '/localization/pose',
+        # Visual odometry publishes ONLY to /fusion/visual_odometry for EKF input.
+        # The authoritative /localization/pose comes from slam_pose_adapter (when slam:=true)
+        # or online_mapping pose_adapter (when slam:=false), not from RGB-D odometry.
+        # Publishing a second conflicting pose to /localization/pose caused frame-change
+        # discontinuities because visual_odom != map frames.
+        self.odom_pub = self.create_publisher(
+            Odometry,
+            '/fusion/visual_odometry',
             10,
         )
 
@@ -633,6 +643,10 @@ class RGBDOdometryBaseline(Node):
         self.accepted_count = 0
         self.rejected_count = 0
         self.last_log_pair = 0
+
+        self.last_inlier_count = 0
+        self.last_inlier_ratio = 0.0
+        self.last_reprojection_error = float('inf')
 
         self.get_logger().info(
             'Timestamp-synchronized RGB-D visual '
@@ -1066,6 +1080,14 @@ class RGBDOdometryBaseline(Node):
                     self.accepted_count += 1
                     accepted = True
                     method = 'pnp'
+                    motion = float(
+                        np.linalg.norm(translation)
+                    )
+                    self.last_inlier_count = inlier_count
+                    self.last_inlier_ratio = (
+                        float(inlier_count) / len(previous_3d)
+                    )
+                    self.last_reprojection_error = reprojection_error
 
         # -------------------------------------------------------
         # FALLBACK: metric 3D -> 3D.
@@ -1156,6 +1178,13 @@ class RGBDOdometryBaseline(Node):
                             translation
                         )
                     )
+                    self.last_inlier_count = inlier_count
+                    self.last_inlier_ratio = (
+                        float(inlier_count) / len(fallback_source)
+                    )
+                    self.last_reprojection_error = float(
+                        np.median(residuals[inliers])
+                    ) if inliers.any() else 999.0
 
         if not accepted:
             self.rejected_count += 1
@@ -1207,7 +1236,7 @@ class RGBDOdometryBaseline(Node):
         self.publish_pose(stamp)
 
     def publish_pose(self, stamp: float) -> None:
-        """Publish current planar visual odometry pose."""
+        """Publish current planar visual odometry pose and odometry."""
         pose = PoseStamped()
 
         seconds = int(stamp)
@@ -1252,11 +1281,74 @@ class RGBDOdometryBaseline(Node):
         pose.pose.orientation.z = float(
             math.sin(half_yaw)
         )
-        pose.pose.orientation.w = float(
-            math.cos(half_yaw)
-        )
+        # Visual odometry pose is embedded in the Odometry message for EKF fusion.
+        # We do not publish a separate PoseStamped to /localization/pose because
+        # that topic is owned by slam_pose_adapter (slam:=true) or the baseline
+        # pose_adapter (slam:=false). Publishing here caused frame conflicts.
 
-        self.pose_pub.publish(pose)
+        # Publish Odometry message for EKF fusion
+        odom = Odometry()
+        odom.header = pose.header
+        odom.header.frame_id = 'odom'
+        odom.child_frame_id = 'base_link'
+
+        odom.pose.pose = pose.pose
+
+        # Visual odometry covariance.
+        #
+        # The RGB-D PnP estimator in this simulation accumulates a biased
+        # planar pose — it underestimates forward motion by ~3x and tracks
+        # lateral motion in the wrong direction (observed: visual pose
+        # 0.30 m vs Gazebo ground truth 1.00 m; y goes negative while
+        # Gazebo y goes positive).  The PnP reports 100% inliers with low
+        # reprojection error, so the quality scaling alone cannot catch
+        # the systematic bias.
+        #
+        # The EKF also receives wheel-odometry velocities (vx, yaw_rate)
+        # from Gazebo ground truth via ekf_sensor_adapter, plus IMU yaw —
+        # both accurate.  A tight 0.01 (1 cm) covariance caused the EKF to
+        # trust the biased visual pose over the accurate wheel-odometry
+        # integration, producing odom->base_link divergence (EKF net
+        # 0.19 m vs Gazebo 1.00 m).
+        #
+        # Raising the baseline to 10.0 m (position) and 1.0 rad (rotation)
+        # lets the EKF weight the visual odometry weakly, relying primarily
+        # on the accurate wheel-odometry + IMU fusion.  The visual odometry
+        # still contributes a correction signal but cannot dominate the
+        # estimate.  When no motion has ever been accepted, the pose has no
+        # measurement behind it and gets an effectively-infinite covariance.
+        base_pos_cov = 10.0
+        base_rot_cov = 1.0
+
+        if self.accepted_count == 0:
+            # No motion has ever been accepted — the accumulated pose is
+            # just the initial (0, 0, 0) with no measurement behind it.
+            pos_cov = 10000.0
+            rot_cov = 10000.0
+        else:
+            quality_factor = 1.0
+            if self.last_inlier_ratio > 0.0:
+                # Inverse relationship: fewer inliers = higher covariance
+                quality_factor = max(1.0, 5.0 * (1.0 - self.last_inlier_ratio))
+
+            if self.last_reprojection_error < 10.0:
+                # High reprojection error increases uncertainty
+                quality_factor *= (1.0 + self.last_reprojection_error / 2.0)
+
+            pos_cov = base_pos_cov * quality_factor
+            rot_cov = base_rot_cov * quality_factor
+
+        # 6x6 covariance matrix [x, y, z, roll, pitch, yaw]
+        # Only populate x, y, yaw (planar motion)
+        odom.pose.covariance = [0.0] * 36
+        odom.pose.covariance[0] = pos_cov      # x
+        odom.pose.covariance[7] = pos_cov      # y
+        odom.pose.covariance[14] = 99999.0     # z (not used)
+        odom.pose.covariance[21] = 99999.0     # roll (not used)
+        odom.pose.covariance[28] = 99999.0     # pitch (not used)
+        odom.pose.covariance[35] = rot_cov     # yaw
+
+        self.odom_pub.publish(odom)
 
 
 def main(args=None) -> None:

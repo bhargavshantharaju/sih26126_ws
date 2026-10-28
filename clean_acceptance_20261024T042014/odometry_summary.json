@@ -1,0 +1,28 @@
+{
+  "gz_ground_truth": {
+    "samples": 1563,
+    "cumulative_path_length_m": 1.4385,
+    "net_displacement_m": 1.2982,
+    "start_xy": [
+      0.024960505601654023,
+      -0.005832927883705772
+    ],
+    "end_xy": [
+      1.3213876217608038,
+      0.061775513250515224
+    ]
+  },
+  "ekf_filtered": {
+    "samples": 1108,
+    "cumulative_path_length_m": 1.589,
+    "net_displacement_m": 0.8683,
+    "start_xy": [
+      0.04700131713449798,
+      -0.01673624027131926
+    ],
+    "end_xy": [
+      0.8900869365202564,
+      -0.22465094135119135
+    ]
+  }
+}

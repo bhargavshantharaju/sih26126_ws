@@ -1,0 +1,5 @@
+lidar_points_rate_last_10s: 3.40 Hz
+lidar_scan_2d_rate_last_10s: 3.40 Hz
+lidar_points_total: 557
+lidar_scan_2d_total: 558
+cmd_vel_messages_received: 554

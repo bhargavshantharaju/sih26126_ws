@@ -1,0 +1,20 @@
+[19:34:28] state=timeout reason= NAVIGATION_NOT_ACTIVE
+timeout
+[19:34:35] state= SAFE reason=timeout
+[19:34:41] state=timeout reason= SAFE_COMMAND
+timeout
+[19:34:48] state=timeout reason= SAFE_COMMAND
+[19:34:54] state=timeout reason=timeout
+[19:35:02] state=timeout reason=timeout
+[19:35:08] state= SAFE
+timeout reason=timeout
+[19:35:15] state= SAFE reason= SAFE_COMMAND
+timeout
+[19:35:21] state=timeout reason= SAFE_COMMAND
+[19:35:27] state=timeout reason=timeout
+[19:35:34] state=timeout reason=timeout
+[19:35:41] state= SAFE
+timeout reason= SAFE_COMMAND
+timeout
+[19:35:47] state= SAFE
+timeout reason=timeout

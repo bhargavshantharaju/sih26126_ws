@@ -181,8 +181,8 @@
         <surface>
           <friction>
             <ode>
-              <mu>1.5</mu>
-              <mu2>1.5</mu2>
+              <mu>2.0</mu>
+              <mu2>2.0</mu2>
             </ode>
           </friction>
         </surface>
@@ -238,8 +238,8 @@
         <surface>
           <friction>
             <ode>
-              <mu>1.5</mu>
-              <mu2>1.5</mu2>
+              <mu>2.0</mu>
+              <mu2>2.0</mu2>
             </ode>
           </friction>
         </surface>
@@ -295,8 +295,8 @@
         <surface>
           <friction>
             <ode>
-              <mu>1.5</mu>
-              <mu2>1.5</mu2>
+              <mu>2.0</mu>
+              <mu2>2.0</mu2>
             </ode>
           </friction>
         </surface>
@@ -352,8 +352,8 @@
         <surface>
           <friction>
             <ode>
-              <mu>1.5</mu>
-              <mu2>1.5</mu2>
+              <mu>2.0</mu>
+              <mu2>2.0</mu2>
             </ode>
           </friction>
         </surface>
@@ -426,10 +426,12 @@
       </axis>
     </joint>
     <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
-      <left_joint>left_front_wheel_joint</left_joint>
-      <left_joint>left_rear_wheel_joint</left_joint>
-      <right_joint>right_front_wheel_joint</right_joint>
-      <right_joint>right_rear_wheel_joint</right_joint>
+      <!-- NOTE: Swapped to fix rotation direction. With standard wheel positions -->
+      <!-- (left at +Y, right at -Y), DiffDrive needs this swap to match ROS conventions. -->
+      <left_joint>right_front_wheel_joint</left_joint>
+      <left_joint>right_rear_wheel_joint</left_joint>
+      <right_joint>left_front_wheel_joint</right_joint>
+      <right_joint>left_rear_wheel_joint</right_joint>
       <wheel_separation>0.96</wheel_separation>
       <wheel_radius>0.28</wheel_radius>
       <topic>cmd_vel</topic>

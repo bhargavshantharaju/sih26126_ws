@@ -1,0 +1,26 @@
+{
+  "wall_duration_s": 180.07,
+  "sim_duration_s": 55.73,
+  "sim_start_s": 5.341,
+  "sim_end_s": 61.076,
+  "clock_non_monotonic_count": 0,
+  "clock_sample_count": 47670,
+  "mission_state_count": 115,
+  "safety_sample_count": 734,
+  "fusion_sample_count": 280,
+  "gz_path_length_m": 1.4385,
+  "gz_net_displacement_m": 1.2982,
+  "ekf_path_length_m": 1.589,
+  "ekf_net_displacement_m": 0.8683,
+  "lidar_points_rate_hz": 3.4,
+  "lidar_scan_2d_rate_hz": 3.4,
+  "cmd_vel_msg_count": 554,
+  "metrics_msg_count": 113,
+  "tf_map_odom_ok": "89/90",
+  "tf_odom_base_ok": "89/90",
+  "autonomy_sample_count": 111,
+  "autonomy_mode_distribution": {
+    "FULL_AUTONOMY": 111
+  },
+  "autonomy_degraded_fraction": 0.0
+}

@@ -1,5 +1,25 @@
 #!/usr/bin/env python3
-"""SLAM-derived pose adapter for the DRISTHI localization interface."""
+"""SLAM-derived pose adapter for the DRISTHI localization interface.
+
+The adapter looks up the ``map → base_link`` transform produced by
+slam_toolbox and republishes it as :class:`PoseStamped` on
+``/localization/pose``.
+
+Timestamp strategy
+-------------------
+The TF transform's own ``header.stamp`` reflects the sim-time at which
+SLAM computed the correction.  Under WSL2 with RTF < 1.0 this stamp can
+be non-monotonic (SLAM may publish a transform with an older stamp when
+it revisits a previous scan), which caused ``mission_manager`` to
+compute a negative ``elapsed`` and flag every legitimate pose update as
+``IMPLAUSIBLE_POSE_DELTA``.
+
+The fix: publish the pose with the node clock's current time
+(``self.get_clock().now()``) instead of the transform's stamp, and
+enforce a monotonic guard so we never publish a stamp that is older
+than the previously published one.  This guarantees the downstream
+``elapsed`` computation is always non-negative.
+"""
 
 from geometry_msgs.msg import PoseStamped
 import rclpy
@@ -35,6 +55,11 @@ class SlamPoseAdapter(Node):
         self.last_successful_lookup = None
         self.consecutive_failures = 0
 
+        # Monotonic timestamp guard: never publish a pose stamp older than
+        # the previous one.  Initialised to None so the first publish is
+        # always accepted.
+        self._last_published_stamp_ns: int | None = None
+
         self.get_logger().info('SLAM pose adapter initialized')
 
     def publish_pose(self):
@@ -44,9 +69,38 @@ class SlamPoseAdapter(Node):
             transform = self.tf_buffer.lookup_transform(
                 'map', 'base_link', rclpy.time.Time())
 
+            # Use the node clock's current time as the published timestamp.
+            # The transform's own stamp (transform.header.stamp) can be
+            # non-monotonic under WSL2 low-RTF conditions, causing
+            # mission_manager to compute negative elapsed times and flag
+            # every legitimate pose as IMPLAUSIBLE_POSE_DELTA.
+            now_stamp = self.get_clock().now().to_msg()
+
+            # Monotonic guard: ensure we never publish an older stamp than
+            # the previous one.  If the clock jumped backwards (rare but
+            # possible during sim-time startup), reuse the previous stamp
+            # so elapsed is zero rather than negative.
+            now_ns = rclpy.time.Time.from_msg(now_stamp).nanoseconds
+            if (
+                self._last_published_stamp_ns is not None
+                and now_ns < self._last_published_stamp_ns
+            ):
+                now_stamp = rclpy.time.Time(
+                    nanoseconds=self._last_published_stamp_ns
+                ).to_msg()
+                self.get_logger().debug(
+                    'Clock moved backwards; reusing previous stamp for '
+                    'monotonicity',
+                    throttle_duration_sec=5.0,
+                )
+            self._last_published_stamp_ns = max(
+                now_ns,
+                self._last_published_stamp_ns or 0,
+            )
+
             # Convert to PoseStamped
             pose = PoseStamped()
-            pose.header.stamp = transform.header.stamp
+            pose.header.stamp = now_stamp
             pose.header.frame_id = 'map'
 
             pose.pose.position.x = transform.transform.translation.x

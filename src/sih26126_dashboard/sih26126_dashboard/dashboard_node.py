@@ -4,6 +4,7 @@
 import base64
 import json
 import math
+import mimetypes
 import os
 import threading
 import time
@@ -37,6 +38,8 @@ TOPIC_TIMES = {}
 TOPIC_COUNTS = {}
 TOPIC_WINDOWS = {}
 CLOUD_TIMES = deque(maxlen=80)
+# noVNC static assets served through the dashboard HTTP server
+_NOVNC_DIR = '/usr/share/novnc' if os.path.isdir('/usr/share/novnc') else None
 
 
 def event(message, reason='', value=''):
@@ -166,6 +169,9 @@ STATE = {
     'mission_events': deque(maxlen=50),
     'autonomy_summary': '',
     'localization_confidence': None,
+    # ── Gazebo GUI stream ──────────────────────────────────────────────────
+    'gz_stream_status': 'UNKNOWN',
+    'gz_stream_ws_port': 6080,
 }
 
 # ---------------------------------------------------------------------------
@@ -248,10 +254,10 @@ body{background:var(--bg);color:var(--text);font:13px/1.5 var(--font);min-height
 /* ── main grid ───────────────────────────────────────────────────────────── */
 main{
   display:grid;
-  grid-template-columns:1fr 360px;
+  grid-template-columns:1fr 420px;
   grid-template-rows:auto;
-  gap:10px;padding:10px;
-  max-width:1800px;margin:0 auto;
+  gap:12px;padding:12px;
+  max-width:2000px;margin:0 auto;
 }
 /* ── panel ───────────────────────────────────────────────────────────────── */
 .panel{
@@ -273,13 +279,18 @@ main{
 }
 /* ── right column ────────────────────────────────────────────────────────── */
 #right-col{
-  width:360px;display:flex;flex-direction:column;gap:10px;
+  width:420px;display:flex;flex-direction:column;gap:10px;
 }
 /* ── map canvas ──────────────────────────────────────────────────────────── */
 #map-wrap{
-  height:clamp(340px,52vh,660px);
+  height:clamp(480px,65vh,900px);
   background:#060b10;
   display:block;position:relative;
+}
+#map-wrap.fullscreen{
+  position:fixed;top:0;left:0;right:0;bottom:0;
+  z-index:9999;height:100vh;width:100vw;
+  border-radius:0;
 }
 #map{width:100%;height:100%;display:block}
 #map-legend{
@@ -302,16 +313,37 @@ main{
 .map-stat .k{color:var(--muted);text-transform:uppercase;font-size:10px;letter-spacing:.08em}
 .map-stat .v{color:var(--text);font-weight:700;margin-top:2px;font-size:12px}
 /* ── bottom row ──────────────────────────────────────────────────────────── */
-#bottom-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+#bottom-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:4px}
 /* ── cameras strip ───────────────────────────────────────────────────────── */
 #cam-strip{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cam-wrap{position:relative}
+.cam-wrap.fullscreen{
+  position:fixed;top:0;left:0;right:0;bottom:0;
+  z-index:9999;background:var(--bg);
+  display:flex;flex-direction:column;justify-content:center;align-items:center;
+  padding:20px;
+}
+.cam-wrap.fullscreen .cam-img{
+  max-width:100%;max-height:90vh;width:auto;height:auto;
+}
 .cam-img{
   width:100%;aspect-ratio:4/3;object-fit:contain;
   background:#050a0f;border-radius:4px;display:block;
+  cursor:pointer;transition:transform 0.2s;
 }
+.cam-img:hover{transform:scale(1.02)}
 .cam-meta{font:11px var(--mono);color:var(--muted);margin-top:6px}
+.fullscreen-btn{
+  position:absolute;top:8px;right:8px;
+  background:rgba(0,0,0,0.6);color:var(--cyan);
+  border:1px solid var(--border);border-radius:4px;
+  padding:6px 10px;font:11px var(--mono);
+  cursor:pointer;opacity:0;transition:opacity 0.2s;
+}
+.cam-wrap:hover .fullscreen-btn,.fullscreen .fullscreen-btn{opacity:1}
+.fullscreen-btn:hover{background:rgba(0,0,0,0.8);color:var(--text)}
 /* ── cloud radar canvas ──────────────────────────────────────────────────── */
-#cloud-wrap{height:220px;background:#060b10;border-radius:4px;overflow:hidden}
+#cloud-wrap{height:280px;background:#060b10;border-radius:4px;overflow:hidden}
 #pointcloud{width:100%;height:100%;display:block}
 /* ── data rows ───────────────────────────────────────────────────────────── */
 .drow{
@@ -416,6 +448,51 @@ table.topics tr:last-child td{border-bottom:none}
   #health-grid{grid-template-columns:repeat(2,1fr)}
   .hdr-meta{display:none}
 }
+/* ── Gazebo Simulator panel ───────────────────────────────────────────────── */
+#gz-simulator-section{
+  max-width:1800px;margin:0 auto 10px;padding:0 10px;
+}
+#gz-sim-panel{
+  background:var(--surface);border:1px solid var(--border);border-radius:8px;
+  overflow:hidden;display:flex;flex-direction:column;
+}
+#gz-sim-hdr{
+  padding:9px 14px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:8px;flex-shrink:0;
+}
+#gz-sim-hdr h2{
+  font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;
+  color:var(--dim);flex:1;
+}
+#gz-status-badge{
+  font:700 10px var(--mono);padding:3px 10px;border-radius:4px;letter-spacing:.07em;
+}
+#gz-stream-note{
+  font:11px var(--mono);color:var(--muted);padding:16px 14px;
+  background:var(--surface2);border-top:1px solid var(--border);
+}
+#gz-iframe-wrap{
+  position:relative;width:100%;
+  /* 16:9 aspect ratio for the Gazebo GUI window */
+  padding-top:56.25%;
+  background:#02080d;
+}
+#gz-iframe-wrap iframe{
+  position:absolute;top:0;left:0;width:100%;height:100%;
+  border:none;display:block;
+}
+#gz-loading-overlay{
+  position:absolute;top:0;left:0;width:100%;height:100%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:#02080d;color:var(--muted);font:13px var(--mono);gap:12px;
+  pointer-events:none;
+}
+#gz-loading-overlay .gz-spinner{
+  width:32px;height:32px;border:3px solid var(--border2);
+  border-top-color:var(--cyan);border-radius:50%;
+  animation:gz-spin 0.8s linear infinite;
+}
+@keyframes gz-spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -471,6 +548,7 @@ table.topics tr:last-child td{border-bottom:none}
         <h2>Live Occupancy Map</h2>
         <span class="tag" id="map-expl-tag">EXPLORATION: —</span>
         <span class="tag" style="margin-left:4px" id="map-path-tag">PATH: WAITING</span>
+        <button class="fullscreen-btn" style="position:relative;opacity:1;margin-left:auto" onclick="toggleFullscreen('map-wrap')">⛶</button>
       </div>
       <div id="map-wrap"><canvas id="map"></canvas></div>
       <div id="map-legend">
@@ -499,7 +577,10 @@ table.topics tr:last-child td{border-bottom:none}
       <div class="panel">
         <div class="panel-hdr"><h2>RGB Sensor</h2></div>
         <div class="panel-body">
-          <img class="cam-img" src="/camera.mjpg" alt="Live RGB">
+          <div class="cam-wrap" id="cam-rgb-wrap">
+            <img class="cam-img" id="cam-rgb-img" src="/camera.mjpg" alt="Live RGB">
+            <button class="fullscreen-btn" onclick="toggleFullscreen('cam-rgb-wrap')">⛶ Fullscreen</button>
+          </div>
           <div class="cam-meta">
             <span id="cam-res">—</span> &nbsp;·&nbsp;
             <span id="cam-fps">— Hz</span> &nbsp;·&nbsp;
@@ -512,7 +593,10 @@ table.topics tr:last-child td{border-bottom:none}
       <div class="panel">
         <div class="panel-hdr"><h2>Traversability</h2></div>
         <div class="panel-body">
-          <img class="cam-img" src="/trav.mjpg" alt="Traversability">
+          <div class="cam-wrap" id="cam-trav-wrap">
+            <img class="cam-img" id="cam-trav-img" src="/trav.mjpg" alt="Traversability">
+            <button class="fullscreen-btn" onclick="toggleFullscreen('cam-trav-wrap')">⛶ Fullscreen</button>
+          </div>
           <div class="drow"><span class="k">Mean score</span><span class="v" id="travscore">—</span></div>
           <div class="drow"><span class="k">Class / confidence</span><span class="v" id="terrain-class">—</span></div>
           <div class="drow"><span class="k">Slope / roughness / geom conf</span><span class="v" id="geometry">—</span></div>
@@ -738,6 +822,41 @@ table.topics tr:last-child td{border-bottom:none}
   </div><!-- /right-col -->
 </main>
 
+<!-- ══ GAZEBO SIMULATOR ═══════════════════════════════════════════════════ -->
+<section id="gz-simulator-section">
+  <div id="gz-sim-panel" class="panel">
+    <div id="gz-sim-hdr" class="panel-hdr">
+      <h2>Gazebo Simulator · Live 3D View</h2>
+      <span id="gz-status-badge" class="bg-offline">STREAM DISABLED</span>
+      <span id="gz-stream-launch-hint" style="font:11px var(--mono);color:var(--muted);margin-left:8px"></span>
+    </div>
+    <!-- The iframe wrapper is always in the DOM; the overlay covers it when not running -->
+    <div id="gz-iframe-wrap">
+      <!-- overlay shown when stream is not yet connected -->
+      <div id="gz-loading-overlay">
+        <div class="gz-spinner" id="gz-spinner"></div>
+        <span id="gz-overlay-msg">Gazebo GUI stream is not active</span>
+        <span id="gz-overlay-hint" style="font:10px var(--mono);color:var(--muted)"></span>
+      </div>
+      <!-- noVNC client iframe; src is set by JS once stream is RUNNING -->
+      <iframe id="gz-iframe"
+              title="Gazebo Simulator"
+              allow="fullscreen"
+              style="opacity:0;transition:opacity .4s">
+      </iframe>
+    </div>
+    <div id="gz-stream-note">
+      <b style="color:var(--dim)">Gazebo Simulator panel</b>
+      &nbsp;—&nbsp;
+      The live Gazebo 3D world is streamed into this panel via noVNC.
+      Enable with&nbsp;
+      <code style="color:var(--cyan);background:var(--surface2);padding:1px 5px;border-radius:3px">gui_stream:=true</code>
+      &nbsp;at launch.
+      All traffic stays on localhost; no desktop is exposed to the network.
+    </div>
+  </div>
+</section>
+
 <script>
 /* ── helpers ─────────────────────────────────────────────────────────────── */
 'use strict';
@@ -756,6 +875,21 @@ function healthClass(s){
   if(s==='STALE')return 'bg-stale';
   return 'bg-offline';
 }
+function toggleFullscreen(wrapId){
+  const wrap=el(wrapId);
+  if(!wrap)return;
+  if(wrap.classList.contains('fullscreen')){
+    wrap.classList.remove('fullscreen');
+  }else{
+    wrap.classList.add('fullscreen');
+  }
+}
+// Close fullscreen on Escape key
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    document.querySelectorAll('.fullscreen').forEach(el=>el.classList.remove('fullscreen'));
+  }
+});
 
 /* ── map canvas ──────────────────────────────────────────────────────────── */
 function drawMap(s){
@@ -1139,6 +1273,9 @@ async function update(){
   /* ── canvas draws ── */
   drawMap(s);
   drawCloud(s);
+
+  /* ── Gazebo Simulator panel ── */
+  updateGzPanel(s.gz_stream||{});
 }
 
 function esc(s){
@@ -1147,6 +1284,102 @@ function esc(s){
 
 /* imu panel needs the imu sub-object exposed; polyfill if absent */
 Object.defineProperty(Object.prototype,'imu',{get(){return undefined},configurable:true});
+
+/* ── Gazebo Simulator panel ─────────────────────────────────────────────── */
+let _gzIframeLoaded = false;
+let _gzLastWsPort = null;
+
+function updateGzPanel(gz) {
+  const badge      = el('gz-status-badge');
+  const spinner    = el('gz-spinner');
+  const overlay    = el('gz-loading-overlay');
+  const overlayMsg = el('gz-overlay-msg');
+  const overlayHint= el('gz-overlay-hint');
+  const iframe     = el('gz-iframe');
+  const hint       = el('gz-stream-launch-hint');
+
+  const status  = gz.status || 'UNKNOWN';
+  const running = gz.running === true;
+  const wsPort  = gz.ws_port || 6080;
+
+  /* -- badge colour -- */
+  if (running) {
+    badge.textContent = 'STREAMING';
+    badge.className   = 'bg-live';
+  } else if (status === 'STOPPED') {
+    badge.textContent = 'STOPPED';
+    badge.className   = 'bg-stale';
+  } else if (status === 'UNAVAILABLE') {
+    badge.textContent = 'DEPS MISSING';
+    badge.className   = 'bg-offline';
+  } else if (status === 'UNKNOWN') {
+    badge.textContent = 'STREAM DISABLED';
+    badge.className   = 'bg-offline';
+  } else {
+    badge.textContent = status;
+    badge.className   = 'bg-offline';
+  }
+
+  /* -- launch hint in header -- */
+  if (!running && status === 'UNKNOWN') {
+    hint.textContent = '(add gui_stream:=true to enable)';
+  } else if (status === 'UNAVAILABLE') {
+    hint.textContent = 'Install: sudo apt-get install -y xvfb x11vnc websockify novnc';
+  } else {
+    hint.textContent = '';
+  }
+
+  /* -- iframe / overlay -- */
+  if (running) {
+    /* Build the noVNC URL served through the dashboard's /gz_novnc/ proxy.
+       The noVNC client connects its WebSocket back to the websockify port
+       (wsPort).  We use the page's own hostname so it works whether the
+       dashboard is accessed on localhost or via an SSH tunnel. */
+    const host    = window.location.hostname || 'localhost';
+    const novncSrc = `/gz_novnc/vnc_lite.html?host=${host}&port=${wsPort}&autoconnect=1&resize=scale&show_dot=1`;
+
+    if (!_gzIframeLoaded || _gzLastWsPort !== wsPort) {
+      /* First load or port changed — (re-)point the iframe */
+      spinner.style.display  = '';
+      overlay.style.opacity  = '1';
+      overlayMsg.textContent = 'Connecting to Gazebo GUI stream…';
+      overlayHint.textContent= `ws://${host}:${wsPort}`;
+      iframe.style.opacity   = '0';
+      iframe.onload = () => {
+        /* Fade in the iframe and hide the overlay once noVNC page has loaded */
+        iframe.style.opacity   = '1';
+        overlay.style.opacity  = '0';
+        setTimeout(() => { overlay.style.display = 'none'; }, 400);
+        _gzIframeLoaded = true;
+      };
+      iframe.src        = novncSrc;
+      _gzLastWsPort     = wsPort;
+    }
+    /* If already loaded, keep iframe visible */
+  } else {
+    /* Stream not running — reset iframe and show overlay */
+    if (_gzIframeLoaded) {
+      iframe.src = 'about:blank';
+      _gzIframeLoaded = false;
+      _gzLastWsPort   = null;
+    }
+    overlay.style.display  = '';
+    overlay.style.opacity  = '1';
+    iframe.style.opacity   = '0';
+    spinner.style.display  = running ? '' : 'none';
+
+    if (status === 'UNAVAILABLE') {
+      overlayMsg.textContent  = '⚠ Gazebo GUI stream dependencies missing';
+      overlayHint.textContent = 'sudo apt-get install -y xvfb x11vnc websockify novnc';
+    } else if (status === 'STOPPED') {
+      overlayMsg.textContent  = 'GUI stream stopped unexpectedly';
+      overlayHint.textContent = 'Check ROS logs for gz_gui_stream node';
+    } else {
+      overlayMsg.textContent  = 'Gazebo GUI stream is not active';
+      overlayHint.textContent = 'Launch with  gui_stream:=true  to enable';
+    }
+  }
+}
 
 setInterval(update,1000);
 update();
@@ -1228,6 +1461,8 @@ class DashboardNode(Node):
             String, '/autonomy/summary', self.autonomy_summary_callback, 10)
         self.create_subscription(
             Float32, '/localization/confidence', self.loc_confidence_callback, 10)
+        self.create_subscription(
+            String, '/gz_gui_stream/status', self.gz_stream_status_callback, 10)
         self.create_timer(2.0, self.refresh_topics)
         event('Dashboard connected; awaiting live subsystem messages',
               reason='startup', value='')
@@ -1744,6 +1979,19 @@ class DashboardNode(Node):
             STATE['localization_confidence'] = round(float(msg.data), 3)
             self.mark('/localization/confidence')
 
+    def gz_stream_status_callback(self, msg: String):
+        """Update Gazebo GUI stream status from /gz_gui_stream/status."""
+        data = msg.data  # e.g. 'RUNNING:ws_port=6080', 'STOPPED', 'UNAVAILABLE'
+        with LOCK:
+            STATE['gz_stream_status'] = data
+            if data.startswith('RUNNING:ws_port='):
+                try:
+                    port = int(data.split('=', 1)[1])
+                    STATE['gz_stream_ws_port'] = port
+                except (ValueError, IndexError):
+                    pass
+            self.mark('/gz_gui_stream/status')
+
     def refresh_topics(self):
         try:
             found = dict(self.get_topic_names_and_types())
@@ -1969,6 +2217,11 @@ def status_payload():
             'planner_risk_age': age_of(state['planner_risk_last'], now),
             'mission_events': list(state['mission_events'])[:20],
             'localization_confidence': state['localization_confidence'],
+            'gz_stream': {
+                'status': state['gz_stream_status'],
+                'ws_port': state['gz_stream_ws_port'],
+                'running': state['gz_stream_status'].startswith('RUNNING'),
+            },
         }
     return payload
 
@@ -1993,9 +2246,52 @@ class Handler(BaseHTTPRequestHandler):
                            'application/json')
         elif self.path in ('/camera.mjpg', '/trav.mjpg'):
             self.stream('camera_jpeg' if self.path.startswith('/camera') else 'trav_jpeg')
+        elif self.path.startswith('/gz_novnc/'):
+            self._serve_novnc(self.path[len('/gz_novnc/'):])
         else:
             self.send_response(404)
             self.end_headers()
+
+    def _serve_novnc(self, rel_path: str) -> None:
+        """Serve noVNC static files from the system noVNC directory."""
+        if _NOVNC_DIR is None:
+            self.send_response(503)
+            msg = b'noVNC assets not found. Install: sudo apt-get install -y novnc'
+            self.send_header('Content-Type', 'text/plain')
+            self.send_header('Content-Length', str(len(msg)))
+            self.end_headers()
+            self.wfile.write(msg)
+            return
+        # Default to vnc_lite.html when the root or empty path is requested
+        if not rel_path or rel_path == '/':
+            rel_path = 'vnc_lite.html'
+        # Security: reject any path traversal attempts
+        safe_rel = os.path.normpath(rel_path).lstrip('/')
+        if '..' in safe_rel:
+            self.send_response(403)
+            self.end_headers()
+            return
+        full_path = os.path.join(_NOVNC_DIR, safe_rel)
+        if not os.path.isfile(full_path):
+            self.send_response(404)
+            self.end_headers()
+            return
+        mime, _ = mimetypes.guess_type(full_path)
+        if mime is None:
+            mime = 'application/octet-stream'
+        try:
+            with open(full_path, 'rb') as fh:
+                data = fh.read()
+        except OSError:
+            self.send_response(500)
+            self.end_headers()
+            return
+        self.send_response(200)
+        self.send_header('Content-Type', mime)
+        self.send_header('Content-Length', str(len(data)))
+        self.send_header('Cache-Control', 'public, max-age=3600')
+        self.end_headers()
+        self.wfile.write(data)
 
     def stream(self, key):
         self.send_response(200)

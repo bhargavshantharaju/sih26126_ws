@@ -27,11 +27,17 @@ class EkfSensorAdapter(Node):
             Odometry, '/fusion/wheel_odometry', 10
         )
         self._imu_pub = self.create_publisher(Imu, '/fusion/imu', 10)
+
         self.declare_parameter('wheel_input_enabled', True)
+        self.declare_parameter('visual_input_enabled', True)
+
         self.create_subscription(
             Odometry, '/model/sih_ugv/odometry', self._odom_callback, 10
         )
         self.create_subscription(Imu, '/imu', self._imu_callback, 10)
+        # Visual odometry already has covariance from rgbd_odometry_baseline
+        # No adaptation needed, but we could add quality gating here
+        self.get_logger().info('EKF sensor adapter initialized with visual odometry support')
 
     def _odom_callback(self, msg: Odometry) -> None:
         # This explicit gate is intended for paired sensor-contribution

@@ -1,0 +1,139 @@
+SENSOR DATA AND FRAME CONTRACT ANALYSIS
+========================================
+
+## LiDAR Processing
+
+### Message Types and Frames
+- Input: sensor_msgs/PointCloud2 on /lidar/points
+- Output: sensor_msgs/LaserScan on /lidar/scan_2d
+- Frame ID: sih_ugv/base_link/lidar_3d (configured and verified)
+- Timestamp: self.get_clock().now() (node clock, NOT msg.header.stamp)
+
+### Timestamp Strategy (VERIFIED CORRECT)
+```python
+# From lidar_processor.py (line ~240):
+scan.header.stamp = self.get_clock().now().to_msg()
+```
+
+Rationale: When the odom→base_link TF gate first opens, queued point clouds
+carry old timestamps (e.g., t=14.7s). If we used msg.header.stamp, SLAM's
+MessageFilter would try to look up odom→base_link at that old time, but EKF's
+TF buffer only holds data from when EKF started (e.g., t=20.0s), causing:
+  "Requested time 14.7s but the earliest data is at time 20.0s"
+
+Using current node clock ensures every scan has a timestamp within the TF
+buffer's valid range. This fix is confirmed by regression test:
+  test_scan_uses_node_clock_not_msg_stamp PASSED
+
+### Scan Geometry
+- Bins: 720
+- Angle range: -2.356 to 2.356 rad (-135° to 135°)
+- Range: 0.2 to 20.0 m
+- Vertical tolerance: ±5° elevation
+- Processing: Horizontal slice projection, vectorized numpy
+
+### TF Gate (VERIFIED WORKING)
+```python
+# From lidar_processor.py:
+if not self._odom_tf_ready:
+    try:
+        self._tf_buffer.lookup_transform('odom', 'base_link', rclpy.time.Time(), timeout=0.0)
+        self._odom_tf_ready = True
+        # Start publishing scans
+    except:
+        return  # Hold scans until TF available
+
+# Periodic re-verification every 5s to recover from EKF restart
+```
+
+Status: Working correctly. Log confirms:
+  "odom->base_link TF available — starting scan publication"
+
+### Update Rates (from launch log)
+- Point cloud rate: ~10 Hz (Gazebo sensor)
+- Scan publication: ~5 Hz after throttle_scans=2
+- SLAM processing: Accepts scans based on minimum_time_interval=0.5s (~2 Hz keyframes)
+
+## Static TF Publishers
+
+### LiDAR TF
+```
+Transform: base_link → sih_ugv/base_link/lidar_3d
+Publisher: lidar_static_tf_publisher
+Status: ACTIVE
+Log: "LiDAR static TF publisher initialized (lidar_3d)"
+```
+
+### IMU TF
+```
+Transform: base_link → sih_ugv/base_link/imu_sensor
+Publisher: imu_static_tf_publisher
+Status: ACTIVE
+Log: "IMU static TF published: base_link -> sih_ugv/base_link/imu_sensor"
+```
+
+## TF Chain Verification
+
+### Reference Mode (slam=true, fusion=true)
+```
+map → odom → base_link → sih_ugv/base_link/lidar_3d
+  ↑      ↑        ↑
+  |      |        └── Static TF (lidar_static_tf_publisher)
+  |      └── EKF (robot_localization ekf_filter_node)
+  └── SLAM (slam_toolbox)
+
+Also:
+base_link → sih_ugv/base_link/imu_sensor (static)
+```
+
+All transforms verified active in launch log. No "frame does not exist" errors
+after startup (only expected warnings during the first ~3s before SLAM creates
+map frame).
+
+## Frame Contract Compliance
+
+✅ Scan frame_id matches static TF configuration
+✅ Scan timestamps within TF buffer range (node clock strategy)
+✅ TF gate prevents premature scan publication
+✅ Periodic TF re-verification handles EKF restart
+✅ All required transforms present and active
+
+## SLAM MessageFilter Queue Analysis
+
+### Queue Drops Observed
+Count: 17 drops during 90s test
+Pattern: Roughly every ~3 sim-seconds
+Reason: "discarding message because the queue is full"
+
+### Root Cause
+Despite node-clock timestamps and TF gate, scans can still arrive at SLAM
+before the EXACT required TF is available when:
+1. Sim-time advances in bursts at low RTF
+2. Scan arrives at exact moment TF is being updated
+3. scan_buffer_size (50) insufficient for startup queuing
+
+### Impact Assessment
+- Drops: ~17/90s = 0.19 Hz drop rate
+- Scan rate: ~5 Hz input rate
+- Drop percentage: 0.19/5 = 3.8%
+- Effect on map: Minimal; map growth and navigation working normally
+- Effect on stability: No impact on pose discontinuities
+
+### Status: NON-BLOCKING
+Queue drops are annoying but do not prevent autonomous operation. SLAM
+processes enough scans to maintain stable map→odom. Consider increasing
+scan_buffer_size to 75-100 for future improvement.
+
+## Conclusion
+
+Sensor data and frame contracts are CORRECT:
+✅ LiDAR timestamps use node clock (not stale msg stamps)
+✅ TF gate prevents premature scan publication
+✅ Frame IDs consistent across pipeline
+✅ Static TFs active and correct
+✅ Scan geometry valid (720 bins, proper range/elevation filtering)
+✅ Queue drops present but non-blocking
+
+The lidar_processor timestamp fix is working as designed and verified by
+regression test. The remaining queue drops are a timing optimization issue,
+not a correctness issue.

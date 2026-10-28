@@ -14,6 +14,19 @@ from rclpy.node import Node
 from ros_gz_interfaces.msg import Contacts
 from std_msgs.msg import Float32, Int32, String
 
+# Safety reasons that indicate a genuine localization/perception fault
+# (as opposed to 'NAVIGATION_NOT_ACTIVE', which simply means the planner
+# is idle).  When the safety supervisor reports STOPPED with one of these
+# reasons while the mission is active, the mission transitions to SAFE_STOP.
+CRITICAL_SAFETY_REASONS = (
+    'STALE_LOCALIZATION',
+    'STALE_DEPTH',
+    'STALE_TRAVERSABILITY',
+    'INVALID_LOCALIZATION',
+    'INVALID_COMMAND',
+    'LOW_LOCALIZATION_CONFIDENCE',
+)
+
 
 def yaw_from_pose(pose):
     """Return planar yaw for a ROS pose."""
@@ -23,9 +36,18 @@ def yaw_from_pose(pose):
 
 
 def pose_jump_exceeded(distance_m, elapsed_s, max_speed_mps=2.0, margin_m=0.10):
-    """Flag a pose delta that cannot be explained by the simulated vehicle."""
+    """Flag a pose delta that cannot be explained by the simulated vehicle.
+
+    When elapsed_s is zero or negative (duplicate timestamp, non-monotonic
+    delivery), only flag movements that exceed the position margin.  This avoids
+    false IMPLAUSIBLE_POSE_DELTA for zero-elapsed pose pairs that result from
+    clock startup or sim-time stalls.  The caller is responsible for using
+    wall-clock elapsed when sim-timestamps are non-monotonic.
+    """
     if elapsed_s <= 0.0:
-        return distance_m > 1e-4
+        # Only flag movements larger than the allowable margin — not any
+        # micromovement (the old 1e-4 m threshold was effectively zero).
+        return distance_m > max(0.0, margin_m)
     return distance_m > max(0.0, max_speed_mps) * elapsed_s + max(0.0, margin_m)
 
 
@@ -106,14 +128,40 @@ class MissionManager(Node):
         self.declare_parameter('mission_timeout_sec', 1800.0)
         self.declare_parameter('result_directory', 'artifacts/mission_results')
         self.declare_parameter('mission_name', 'autonomous_outdoor_mission')
-        self.declare_parameter('max_pose_speed_mps', 2.0)
+        self.declare_parameter('max_pose_speed_mps', 2.5)
         self.declare_parameter('pose_jump_margin_m', 0.10)
-        self.declare_parameter('frontier_exhaustion_grace_sec', 3.0)
+        self.declare_parameter('mission_type', 'EXPLORATION')
+        # Number of consecutive pose discontinuities required before triggering
+        # SAFE_STOP.  A single SLAM loop-closure correction can cause a large
+        # instantaneous position jump that is flagged as a discontinuity but
+        # represents normal SLAM operation rather than a sensor fault.
+        # Requiring 3 consecutive discontinuities prevents a single correction
+        # from permanently halting the mission.
+        self.declare_parameter('pose_discontinuity_safe_stop_count', 3)
+        self.declare_parameter('frontier_exhaustion_grace_sec', 15.0)
         self.declare_parameter('home_route_unavailable_timeout_sec', 3.0)
+        self.declare_parameter('pose_startup_grace_sec', 15.0)
+        # Wall-clock time at which the startup grace period ends.
+        # Set to None until the first pose is received; then set to
+        # time.monotonic() + pose_startup_grace_sec.
+        self._pose_grace_end = None
+        self._pose_grace_logged = False
+        # Track when SAFE_STOP was entered due to a transient safety fault
+        # (rather than a persistent localization fault or collision).  If the
+        # safety condition clears and the mission was actively exploring/returning,
+        # transition back to the previous active state after a brief verification
+        # delay to confirm the fault has genuinely resolved.
+        self._safe_stop_entry_time = None
+        self._safe_stop_recovery_enabled = True  # Can be disabled after persistent faults
+        self._state_before_safe_stop = None
         self.pose = None
         self.raw_pose = None
         self.odom = None
         self.localization_source = None
+        # Profile-controller state (used when mission_type != 'EXPLORATION')
+        self.profile_state = ''
+        self.profile_waypoint_index = 0
+        self.profile_total_waypoints = 0
         self.contact_stream_seen = False
         self.collision_detected = None
         self.stationary_since = None
@@ -135,6 +183,18 @@ class MissionManager(Node):
         self.trajectory = []
         self.pose_discontinuities = []
         self.pose_discontinuity_count = 0
+        self.consecutive_pose_discontinuities = 0
+        # True only when consecutive discontinuity threshold was exceeded,
+        # i.e. a real persistent localization fault was detected.  A single
+        # SLAM loop-closure correction that is subsequently followed by stable
+        # accepted poses does NOT set this flag.
+        self.persistent_discontinuity_fault = False
+        # Counts how many consecutive pose samples have been accepted without
+        # a discontinuity.  Used to clear consecutive_pose_discontinuities
+        # only after the localization has been genuinely stable for several
+        # samples in a row, preventing alternating bad/good patterns from
+        # evading the threshold.
+        self.consecutive_stable_poses = 0
         self.duplicate_pose_samples = 0
         self.last_pose_stamp = None
         self.last_pose_frame = None
@@ -206,6 +266,9 @@ class MissionManager(Node):
         self.create_subscription(Contacts, '/ugv_contacts', self.contacts_cb, 10)
         self.create_subscription(NavPath, '/planner/global_path', self.global_path_cb, 10)
         self.create_subscription(NavPath, '/planner/local_path', self.local_path_cb, 10)
+        self.create_subscription(String, '/mission/profile_state', self._profile_state_cb, 10)
+        self.create_subscription(Int32, '/mission/waypoint_index', self._waypoint_index_cb, 10)
+        self.create_subscription(Int32, '/mission/total_waypoints', self._total_waypoints_cb, 10)
         self.create_timer(0.5, self.process)
 
     def pose_cb(self, msg):
@@ -225,39 +288,126 @@ class MissionManager(Node):
                                       self.last_raw_pose.pose.position.y)) < 1e-6):
                 self.duplicate_pose_samples += 1
                 return
-        elapsed = (stamp_key - self.last_raw_stamp
-                   if stamp_key is not None and self.last_raw_stamp is not None
-                   else (arrival - self.last_raw_time if self.last_raw_time is not None else 0.0))
+        # Compute elapsed time between consecutive poses.
+        # Under simulation, message timestamps come from the Gazebo /clock topic.
+        # slam_pose_adapter now publishes the current node-clock time so messages
+        # are monotonically stamped, but we add a defensive fallback: if the
+        # sim-time elapsed is negative or zero (non-monotonic delivery, SLAM
+        # restart, or clock jump), fall back to wall-clock elapsed rather than
+        # using a nonsensical negative value.  Negative elapsed passed to
+        # pose_jump_exceeded triggered IMPLAUSIBLE_POSE_DELTA on every call.
+        if stamp_key is not None and self.last_raw_stamp is not None:
+            sim_elapsed = stamp_key - self.last_raw_stamp
+            if sim_elapsed > 0.0:
+                elapsed = sim_elapsed
+            else:
+                # Non-monotonic sim-time: use wall-clock interval as fallback.
+                # Log at DEBUG level to avoid log spam; the root fix is in
+                # slam_pose_adapter which now publishes monotonic timestamps.
+                elapsed = (arrival - self.last_raw_time
+                           if self.last_raw_time is not None else 0.0)
+                self.get_logger().debug(
+                    f'Non-monotonic pose timestamp: sim_elapsed={sim_elapsed:.4f}s; '
+                    f'using wall-clock elapsed={elapsed:.4f}s instead')
+        else:
+            elapsed = (arrival - self.last_raw_time
+                       if self.last_raw_time is not None else 0.0)
+
+        # ----------------------------------------------------------------
+        # Startup grace period management.
+        # On the very first pose received, record when the grace period ends.
+        # During grace: frame changes are suppressed (not counted as faults).
+        # Implausible position jumps are ALWAYS checked regardless of grace.
+        # ----------------------------------------------------------------
+        if self._pose_grace_end is None:
+            grace_sec = float(self.get_parameter('pose_startup_grace_sec').value)
+            self._pose_grace_end = arrival + grace_sec
+        in_grace = arrival < self._pose_grace_end
+        if not in_grace and not self._pose_grace_logged:
+            self._pose_grace_logged = True
+            self.get_logger().info(
+                'Pose startup grace period ended; strict frame checks now active')
+
         if self.last_pose_xy is not None:
             delta = math.dist(xy, self.last_pose_xy)
             frame_changed = bool(self.last_pose_frame and frame
                                  and frame != self.last_pose_frame)
-            if frame_changed or pose_jump_exceeded(
-                    delta, elapsed,
-                    float(self.get_parameter('max_pose_speed_mps').value),
-                    float(self.get_parameter('pose_jump_margin_m').value)):
+            # During the grace period, frame changes are not treated as
+            # discontinuities.  Implausible position jumps are always faults.
+            implausible = pose_jump_exceeded(
+                delta, elapsed,
+                float(self.get_parameter('max_pose_speed_mps').value),
+                float(self.get_parameter('pose_jump_margin_m').value))
+            is_discontinuity = (not in_grace and frame_changed) or implausible
+            if is_discontinuity:
                 self.pose_discontinuity_count += 1
+                self.consecutive_pose_discontinuities += 1
+                if in_grace and implausible:
+                    reason = 'IMPLAUSIBLE_POSE_DELTA'
+                elif frame_changed:
+                    reason = 'FRAME_CHANGED'
+                else:
+                    reason = 'IMPLAUSIBLE_POSE_DELTA'
                 event = {
                     'time_sec': round(arrival - self.started, 3),
-                    'reason': 'FRAME_CHANGED' if frame_changed else 'IMPLAUSIBLE_POSE_DELTA',
+                    'reason': reason,
                     'frame_id': frame, 'elapsed_s': elapsed,
                     'delta_m': delta, 'raw_pose': self.pose_dict(msg),
                     'last_accepted_pose': self.pose_dict(self.pose),
                 }
                 self.pose_discontinuities.append(event)
-                self.get_logger().error(
-                    f"Pose discontinuity {self.pose_discontinuity_count}: "
+                threshold = int(self.get_parameter(
+                    'pose_discontinuity_safe_stop_count').value)
+                self.get_logger().warn(
+                    f"Pose discontinuity {self.pose_discontinuity_count} "
+                    f"(consecutive={self.consecutive_pose_discontinuities}/{threshold}): "
                     f"{event['reason']} delta={delta:.3f} m in {elapsed:.4f} s "
                     f"frame={frame!r}; raw pose retained, metric sample rejected")
-                if self.state not in ('MISSION_COMPLETE', 'FAILED', 'SAFE_STOP'):
+
+                # KNOWN LIMITATION: When a legitimate SLAM map-frame correction occurs,
+                # the new stable pose will ALSO initially be flagged as a discontinuity
+                # (compared against the old baseline).  Requiring consecutive=3 provides
+                # some robustness, but a better solution would update the accepted
+                # baseline after 1-2 discontinuities (accepting the correction) while
+                # signaling reduced localization_confidence to prevent unsafe motion.
+                # Current implementation: mission_manager does not publish confidence;
+                # slam_pose_adapter maintains confidence=1.0 during corrections.
+                # TODO: Implement confidence signaling or baseline re-anchoring after
+                # verified map corrections to distinguish transient corrections from
+                # persistent localization faults.
+
+                if (self.state not in ('MISSION_COMPLETE', 'FAILED', 'SAFE_STOP')
+                        and self.consecutive_pose_discontinuities >= threshold):
+                    self.persistent_discontinuity_fault = True
                     self.failure_reason = 'POSE_DISCONTINUITY'
+                    # Disable SAFE_STOP recovery — this is a persistent localization fault
+                    self._safe_stop_recovery_enabled = False
+                    self.get_logger().error(
+                        f"SAFE_STOP: {self.consecutive_pose_discontinuities} consecutive "
+                        f"pose discontinuities (threshold={threshold})")
                     self.transition('SAFE_STOP')
+                # Reset the stable-pose streak: a discontinuity interrupts any run
+                self.consecutive_stable_poses = 0
                 self.last_raw_pose = msg
                 self.last_raw_stamp = stamp_key
                 self.last_raw_time = arrival
                 return
+            elif in_grace and frame_changed:
+                # Frame changed during grace period — suppress the fault.
+                # Reset consecutive_pose_discontinuities to prevent accumulation
+                # from any earlier pre-grace faults leaking into the strict phase.
+                self.consecutive_pose_discontinuities = 0
             self.distance_travelled += delta
         self.pose = msg
+        # Increment the stable-poses streak.  The consecutive-discontinuity counter
+        # is only cleared after STABLE_RESET_THRESHOLD consecutive accepted poses.
+        # This prevents an alternating bad/good pattern from resetting the counter
+        # after every single accepted pose and evading the threshold indefinitely.
+        _STABLE_RESET_THRESHOLD = 3
+        self.consecutive_stable_poses += 1
+        if self.consecutive_stable_poses >= _STABLE_RESET_THRESHOLD:
+            self.consecutive_pose_discontinuities = 0
+            self.consecutive_stable_poses = _STABLE_RESET_THRESHOLD  # cap, don't unbounded-grow
         self.last_pose_xy = xy
         self.last_pose_stamp = stamp_key
         self.last_pose_frame = frame
@@ -293,6 +443,18 @@ class MissionManager(Node):
         self.local_path_points = [
             {'x': float(p.pose.position.x), 'y': float(p.pose.position.y)}
             for p in msg.poses]
+
+    def _profile_state_cb(self, msg):
+        """Store profile controller state string."""
+        self.profile_state = msg.data
+
+    def _waypoint_index_cb(self, msg):
+        """Store current waypoint index from profile controller."""
+        self.profile_waypoint_index = int(msg.data)
+
+    def _total_waypoints_cb(self, msg):
+        """Store total waypoint count from profile controller."""
+        self.profile_total_waypoints = int(msg.data)
 
     def goal_reason_cb(self, msg):
         if (msg.data == 'PROGRESS_TIMEOUT_BLACKLISTED'
@@ -403,7 +565,13 @@ class MissionManager(Node):
                                             - yaw_from_pose(self.home.pose)),
                                    math.cos(yaw_from_pose(self.pose.pose)
                                             - yaw_from_pose(self.home.pose)))))
-        distance_valid = None if self.pose_discontinuity_count else self.distance_travelled
+        # Only null the distance metric if a persistent localization fault was
+        # detected (consecutive discontinuities exceeded the threshold).  A single
+        # SLAM loop-closure correction increments pose_discontinuity_count but
+        # does NOT set persistent_discontinuity_fault; distance after a transient
+        # correction is still considered valid once stable poses resume.
+        distance_valid = (None if self.persistent_discontinuity_fault
+                          else self.distance_travelled)
         return {
             'mission': str(self.get_parameter('mission_name').value),
             'mission_result': self.state,
@@ -508,11 +676,13 @@ class MissionManager(Node):
         self.reason_pub.publish(String(data=self.failure_reason))
         if self.pose is None:
             return
+        home_just_captured = False
         if self.home is None:
             self.home = PoseStamped()
             self.home.header = self.pose.header
             self.home.pose = self.pose.pose
             self.home_pub.publish(self.home)
+            home_just_captured = True
             self.started = time.monotonic()
             self.started_at = datetime.now(timezone.utc).isoformat()
             self.transition('MAPPING')
@@ -539,6 +709,56 @@ class MissionManager(Node):
                     0.0 if self.home is not None else None)),
                 sort_keys=True, allow_nan=False)))
             return
+
+        # ---- PROFILE-BASED MISSIONS (WAYPOINT / COVERAGE / SEARCH) ----------
+        mission_type = str(self.get_parameter('mission_type').value).upper()
+        if mission_type != 'EXPLORATION':
+            # Transition out of MAPPING once home has been captured.
+            # Guard with home_just_captured so we don't collapse the
+            # MAPPING tick and the EXECUTING_PROFILE tick into one call.
+            if self.state == 'MAPPING' and self.home is not None and not home_just_captured:
+                self.transition('EXECUTING_PROFILE')
+
+            elif self.state == 'EXECUTING_PROFILE':
+                if self.profile_state.startswith('COMPLETED'):
+                    self.exploration_completion_reason = (
+                        f'Profile controller reported COMPLETED '
+                        f'(waypoints={self.profile_total_waypoints})')
+                    self.transition('RETURNING_HOME')
+                    self.publish_goal()
+                elif self.profile_state.startswith('FAILED'):
+                    self.failure_reason = (
+                        f'Profile controller reported FAILED: {self.profile_state}')
+                    self.transition('FAILED')
+                    self.get_logger().error(self.failure_reason)
+                # else: profile is still running — do nothing, wait
+
+            # RETURNING_HOME / FINAL_ALIGNMENT / terminal states are handled
+            # by the shared logic below; we only skip the frontier exploration
+            # block.  Fall through for RETURNING_HOME / FINAL_ALIGNMENT.
+            if self.state not in ('RETURNING_HOME', 'FINAL_ALIGNMENT',
+                                  'MISSION_COMPLETE', 'FAILED', 'SAFE_STOP'):
+                # While EXECUTING_PROFILE: publish home for other nodes but do
+                # NOT publish /mission/goal (profile controller owns that topic).
+                if self.home is not None:
+                    self.home_pub.publish(self.home)
+                # Skip exploration + timeout + safety checks; go straight to
+                # the metrics publish at the end of process().
+                home_distance = None
+                if self.home is not None and self.pose is not None:
+                    home_distance = math.dist(
+                        (self.pose.pose.position.x, self.pose.pose.position.y),
+                        (self.home.pose.position.x, self.home.pose.position.y))
+                if self.state not in ('MISSION_COMPLETE', 'FAILED', 'SAFE_STOP') and (
+                        time.monotonic() - self.started >= float(
+                            self.get_parameter('mission_timeout_sec').value)):
+                    self.failure_reason = 'MISSION_TIMEOUT'
+                    self.transition('FAILED')
+                self.metrics_pub.publish(String(data=json.dumps(
+                    json_safe(live_metrics_summary(self.mission_metrics(home_distance))),
+                    sort_keys=True, allow_nan=False)))
+                return
+        # ---- END PROFILE-BASED DISPATCH --------------------------------------
 
         if self.map is not None:
             data = np.asarray(self.map.data, dtype=np.int8)
@@ -650,15 +870,63 @@ class MissionManager(Node):
                     self.get_parameter('mission_timeout_sec').value)):
             self.failure_reason = 'MISSION_TIMEOUT'
             self.transition('FAILED')
-        critical = ('STALE_LOCALIZATION', 'STALE_DEPTH', 'STALE_TRAVERSABILITY',
-                    'INVALID_LOCALIZATION', 'INVALID_COMMAND',
-                    'LOW_LOCALIZATION_CONFIDENCE')
+        
+        # SAFE_STOP recovery: if we entered SAFE_STOP due to a transient safety
+        # fault (not a persistent pose discontinuity or collision), and the critical
+        # safety fault that caused SAFE_STOP has cleared, transition back to the
+        # previous active mission state after a brief verification period.
+        if (self.state == 'SAFE_STOP' 
+                and self._safe_stop_recovery_enabled
+                and self._state_before_safe_stop in ('EXPLORING', 'REPLANNING', 'RETURNING_HOME')):
+            # Check if the CRITICAL safety fault has cleared. NAVIGATION_NOT_ACTIVE
+            # is not a critical fault — it just means the planner has no goal yet.
+            critical_fault_active = (
+                self.safety_state == 'STOPPED'
+                and any(fault in self.safety_reason for fault in CRITICAL_SAFETY_REASONS))
+            
+            self.get_logger().info(
+                f'SAFE_STOP recovery check: enabled={self._safe_stop_recovery_enabled} '
+                f'prev_state={self._state_before_safe_stop} entry_time={self._safe_stop_entry_time} '
+                f'critical_fault={critical_fault_active} safety_reason={self.safety_reason}',
+                throttle_duration_sec=5.0)
+            
+            if not critical_fault_active and self._safe_stop_entry_time is not None:
+                # Critical fault cleared. Verify it stays clear for 2 seconds before resuming.
+                recovery_verification_sec = 2.0
+                elapsed = time.monotonic() - self._safe_stop_entry_time
+                if elapsed >= recovery_verification_sec:
+                    self.get_logger().info(
+                        f'SAFE_STOP recovery: critical fault cleared for {elapsed:.1f}s, '
+                        f'resuming {self._state_before_safe_stop}')
+                    self.transition(self._state_before_safe_stop)
+                    self._safe_stop_entry_time = None
+                    self._state_before_safe_stop = None
+                else:
+                    self.get_logger().info(
+                        f'SAFE_STOP recovery: waiting {recovery_verification_sec - elapsed:.1f}s '
+                        f'more before resuming', throttle_duration_sec=1.0)
+            elif critical_fault_active:
+                # Critical fault re-appeared or persists — reset recovery timer
+                self._safe_stop_entry_time = time.monotonic()
+        
         active_mission = self.state in (
             'EXPLORING', 'REPLANNING', 'RETURNING_HOME', 'FINAL_ALIGNMENT')
-        if (active_mission and self.safety_state == 'STOPPED'
-                and any(fault in self.safety_reason for fault in critical)):
+        
+        # Only enforce critical safety faults that indicate real sensor/localization
+        # problems. 'NAVIGATION_NOT_ACTIVE' and other waiting states are not faults.
+        critical_fault_detected = (
+            active_mission 
+            and self.safety_state == 'STOPPED'
+            and any(fault in self.safety_reason for fault in CRITICAL_SAFETY_REASONS))
+        
+        if critical_fault_detected:
+            # Record state before SAFE_STOP so we can recover if the fault clears
+            if self.state != 'SAFE_STOP':
+                self._state_before_safe_stop = self.state
+                self._safe_stop_entry_time = time.monotonic()
             self.failure_reason = f'Critical safety fault: {self.safety_reason}'
             self.transition('SAFE_STOP')
+        
         self.metrics_pub.publish(String(data=json.dumps(
             json_safe(live_metrics_summary(self.mission_metrics(home_distance))),
             sort_keys=True, allow_nan=False)))

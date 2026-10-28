@@ -20,6 +20,10 @@ def generate_launch_description():
     exploration_radius = LaunchConfiguration('exploration_radius_m')
     mission_timeout = LaunchConfiguration('mission_timeout_sec')
     mission_name = LaunchConfiguration('mission_name')
+    # slam and fusion are always true for the autonomous mission benchmark —
+    # the mission requires SLAM-based localization and EKF sensor fusion.
+    slam = LaunchConfiguration('slam')
+    fusion = LaunchConfiguration('fusion')
     return LaunchDescription([
         DeclareLaunchArgument('world', default_value=default_world,
                               description='Outdoor benchmark world SDF.'),
@@ -37,6 +41,16 @@ def generate_launch_description():
             'mission_timeout_sec', default_value='600.0',
             description='Failure cutoff only; exploration completion stays map-driven.'),
         DeclareLaunchArgument('mission_name', default_value='autonomous_forest'),
+        # slam and fusion must be true for the autonomous mission to function.
+        # Explicitly declaring these here allows command-line overrides while
+        # ensuring the expected defaults are slam:=true fusion:=true rather
+        # than the full_stack defaults of false/false.
+        DeclareLaunchArgument(
+            'slam', default_value='true',
+            description='Enable SLAM Toolbox for GPS-denied localisation.'),
+        DeclareLaunchArgument(
+            'fusion', default_value='true',
+            description='Enable robot_localisation EKF for sensor fusion.'),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 f'{bringup_share}/launch/full_stack.launch.py'),
@@ -50,5 +64,7 @@ def generate_launch_description():
                 'minimum_completed_frontiers': completed_frontiers,
                 'minimum_explored_area_m2': minimum_area,
                 'mission_name': mission_name,
+                'slam': slam,
+                'fusion': fusion,
             }.items()),
     ])

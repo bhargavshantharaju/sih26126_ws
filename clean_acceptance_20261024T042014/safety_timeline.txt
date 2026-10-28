@@ -1,0 +1,734 @@
+[04:20:40] state=NO_SAMPLE reason=NO_SAMPLE age=-1.00s
+[04:20:41] state=NO_SAMPLE reason=NO_SAMPLE age=-1.00s
+[04:20:42] state=NO_SAMPLE reason=NO_SAMPLE age=-1.00s
+[04:20:43] state=SAFE reason=SAFE_COMMAND
+[04:20:43] state=SAFE reason=SAFE_COMMAND
+[04:20:43] state=SAFE reason=SAFE_COMMAND
+[04:20:43] state=SAFE reason=SAFE_COMMAND
+[04:20:43] state=SAFE reason=SAFE_COMMAND age=0.01s
+[04:20:43] state=SAFE reason=SAFE_COMMAND
+[04:20:43] state=SAFE reason=SAFE_COMMAND
+[04:20:44] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:20:44] state=STOPPED reason=NAVIGATION_NOT_ACTIVE age=0.06s
+[04:20:44] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:20:44] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:20:45] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:20:45] state=STOPPED reason=NAVIGATION_NOT_ACTIVE age=0.20s
+[04:20:45] state=SAFE reason=SAFE_COMMAND
+[04:20:45] state=SAFE reason=SAFE_COMMAND
+[04:20:46] state=SAFE reason=SAFE_COMMAND
+[04:20:46] state=SAFE reason=SAFE_COMMAND age=0.28s
+[04:20:46] state=SAFE reason=SAFE_COMMAND
+[04:20:46] state=SAFE reason=SAFE_COMMAND
+[04:20:46] state=SAFE reason=SAFE_COMMAND
+[04:20:47] state=SAFE reason=SAFE_COMMAND
+[04:20:47] state=SAFE reason=SAFE_COMMAND age=0.04s
+[04:20:47] state=SAFE reason=SAFE_COMMAND
+[04:20:47] state=SAFE reason=SAFE_COMMAND
+[04:20:48] state=SAFE reason=SAFE_COMMAND
+[04:20:48] state=SAFE reason=SAFE_COMMAND age=0.20s
+[04:20:48] state=SAFE reason=SAFE_COMMAND
+[04:20:48] state=SAFE reason=SAFE_COMMAND
+[04:20:48] state=SAFE reason=SAFE_COMMAND
+[04:20:49] state=SAFE reason=SAFE_COMMAND age=0.30s
+[04:20:49] state=SAFE reason=SAFE_COMMAND
+[04:20:49] state=SAFE reason=SAFE_COMMAND
+[04:20:49] state=SAFE reason=SAFE_COMMAND
+[04:20:50] state=SAFE reason=SAFE_COMMAND
+[04:20:50] state=SAFE reason=SAFE_COMMAND age=0.13s
+[04:20:50] state=SAFE reason=SAFE_COMMAND
+[04:20:50] state=SAFE reason=SAFE_COMMAND
+[04:20:51] state=SAFE reason=SAFE_COMMAND
+[04:20:51] state=SAFE reason=SAFE_COMMAND
+[04:20:51] state=SAFE reason=SAFE_COMMAND age=0.03s
+[04:20:51] state=SAFE reason=SAFE_COMMAND
+[04:20:51] state=SAFE reason=SAFE_COMMAND
+[04:20:52] state=SAFE reason=SAFE_COMMAND
+[04:20:52] state=SAFE reason=SAFE_COMMAND age=0.19s
+[04:20:52] state=SAFE reason=SAFE_COMMAND
+[04:20:52] state=SAFE reason=SAFE_COMMAND
+[04:20:52] state=SAFE reason=SAFE_COMMAND
+[04:20:53] state=SAFE reason=SAFE_COMMAND
+[04:20:53] state=SAFE reason=SAFE_COMMAND age=0.08s
+[04:20:53] state=SAFE reason=SAFE_COMMAND
+[04:20:53] state=SAFE reason=SAFE_COMMAND
+[04:20:54] state=SAFE reason=SAFE_COMMAND
+[04:20:54] state=SAFE reason=SAFE_COMMAND age=0.19s
+[04:20:54] state=SAFE reason=SAFE_COMMAND
+[04:20:54] state=SAFE reason=SAFE_COMMAND
+[04:20:54] state=SAFE reason=SAFE_COMMAND
+[04:20:55] state=SAFE reason=SAFE_COMMAND
+[04:20:55] state=SAFE reason=SAFE_COMMAND age=0.00s
+[04:20:55] state=SAFE reason=SAFE_COMMAND
+[04:20:55] state=SAFE reason=SAFE_COMMAND
+[04:20:56] state=SAFE reason=SAFE_COMMAND age=0.36s
+[04:20:56] state=SAFE reason=SAFE_COMMAND
+[04:20:56] state=SAFE reason=SAFE_COMMAND
+[04:20:56] state=SAFE reason=SAFE_COMMAND
+[04:20:57] state=SAFE reason=SAFE_COMMAND
+[04:20:57] state=SAFE reason=SAFE_COMMAND age=0.18s
+[04:20:57] state=SAFE reason=SAFE_COMMAND
+[04:20:57] state=SAFE reason=SAFE_COMMAND
+[04:20:58] state=SAFE reason=SAFE_COMMAND
+[04:20:58] state=SAFE reason=SAFE_COMMAND age=0.23s
+[04:20:58] state=SAFE reason=SAFE_COMMAND
+[04:20:58] state=SAFE reason=SAFE_COMMAND
+[04:20:59] state=SAFE reason=SAFE_COMMAND
+[04:20:59] state=SAFE reason=SAFE_COMMAND age=0.19s
+[04:20:59] state=SAFE reason=SAFE_COMMAND
+[04:20:59] state=SAFE reason=SAFE_COMMAND
+[04:21:00] state=SAFE reason=SAFE_COMMAND
+[04:21:00] state=SAFE reason=SAFE_COMMAND age=0.06s
+[04:21:00] state=SAFE reason=SAFE_COMMAND
+[04:21:00] state=SAFE reason=SAFE_COMMAND
+[04:21:01] state=SAFE reason=SAFE_COMMAND
+[04:21:01] state=SAFE reason=SAFE_COMMAND age=0.23s
+[04:21:01] state=SAFE reason=SAFE_COMMAND
+[04:21:01] state=SAFE reason=SAFE_COMMAND
+[04:21:02] state=SAFE reason=SAFE_COMMAND
+[04:21:02] state=SAFE reason=SAFE_COMMAND age=0.18s
+[04:21:02] state=SAFE reason=SAFE_COMMAND
+[04:21:02] state=SAFE reason=SAFE_COMMAND
+[04:21:03] state=SAFE reason=SAFE_COMMAND
+[04:21:03] state=SAFE reason=SAFE_COMMAND age=0.28s
+[04:21:03] state=SAFE reason=SAFE_COMMAND
+[04:21:03] state=SAFE reason=SAFE_COMMAND
+[04:21:03] state=SAFE reason=SAFE_COMMAND
+[04:21:04] state=SAFE reason=SAFE_COMMAND age=0.37s
+[04:21:04] state=SAFE reason=SAFE_COMMAND
+[04:21:04] state=SAFE reason=SAFE_COMMAND
+[04:21:04] state=SAFE reason=SAFE_COMMAND
+[04:21:05] state=SAFE reason=SAFE_COMMAND
+[04:21:05] state=SAFE reason=SAFE_COMMAND age=0.02s
+[04:21:05] state=SAFE reason=SAFE_COMMAND
+[04:21:05] state=SAFE reason=SAFE_COMMAND
+[04:21:06] state=SAFE reason=SAFE_COMMAND
+[04:21:06] state=SAFE reason=SAFE_COMMAND age=0.07s
+[04:21:06] state=SAFE reason=SAFE_COMMAND
+[04:21:06] state=SAFE reason=SAFE_COMMAND
+[04:21:07] state=SAFE reason=SAFE_COMMAND age=0.35s
+[04:21:07] state=SAFE reason=SAFE_COMMAND
+[04:21:07] state=SAFE reason=SAFE_COMMAND
+[04:21:08] state=SAFE reason=SAFE_COMMAND
+[04:21:08] state=SAFE reason=SAFE_COMMAND age=0.25s
+[04:21:08] state=SAFE reason=SAFE_COMMAND
+[04:21:08] state=SAFE reason=SAFE_COMMAND
+[04:21:08] state=SAFE reason=SAFE_COMMAND
+[04:21:09] state=SAFE reason=SAFE_COMMAND age=0.34s
+[04:21:09] state=SAFE reason=SAFE_COMMAND
+[04:21:09] state=SAFE reason=SAFE_COMMAND
+[04:21:09] state=SAFE reason=SAFE_COMMAND
+[04:21:10] state=SAFE reason=SAFE_COMMAND age=0.35s
+[04:21:10] state=SAFE reason=SAFE_COMMAND
+[04:21:10] state=SAFE reason=SAFE_COMMAND
+[04:21:11] state=SAFE reason=SAFE_COMMAND
+[04:21:11] state=SAFE reason=SAFE_COMMAND age=0.23s
+[04:21:11] state=SAFE reason=SAFE_COMMAND
+[04:21:11] state=SAFE reason=SAFE_COMMAND
+[04:21:11] state=SAFE reason=SAFE_COMMAND
+[04:21:12] state=SAFE reason=SAFE_COMMAND age=0.33s
+[04:21:12] state=SAFE reason=SAFE_COMMAND
+[04:21:12] state=SAFE reason=SAFE_COMMAND
+[04:21:13] state=SAFE reason=SAFE_COMMAND
+[04:21:13] state=SAFE reason=SAFE_COMMAND
+[04:21:13] state=SAFE reason=SAFE_COMMAND age=0.01s
+[04:21:13] state=SAFE reason=SAFE_COMMAND
+[04:21:14] state=SAFE reason=SAFE_COMMAND
+[04:21:14] state=SAFE reason=SAFE_COMMAND age=0.28s
+[04:21:14] state=SAFE reason=SAFE_COMMAND
+[04:21:14] state=SAFE reason=SAFE_COMMAND
+[04:21:14] state=SAFE reason=SAFE_COMMAND
+[04:21:15] state=SAFE reason=SAFE_COMMAND
+[04:21:15] state=SAFE reason=SAFE_COMMAND age=0.01s
+[04:21:15] state=SAFE reason=SAFE_COMMAND
+[04:21:15] state=SAFE reason=SAFE_COMMAND
+[04:21:16] state=SAFE reason=SAFE_COMMAND age=0.37s
+[04:21:16] state=SAFE reason=SAFE_COMMAND
+[04:21:16] state=SAFE reason=SAFE_COMMAND
+[04:21:17] state=SAFE reason=SAFE_COMMAND
+[04:21:17] state=SAFE reason=SAFE_COMMAND age=0.23s
+[04:21:17] state=SAFE reason=SAFE_COMMAND
+[04:21:17] state=SAFE reason=SAFE_COMMAND
+[04:21:18] state=SAFE reason=SAFE_COMMAND
+[04:21:18] state=SAFE reason=SAFE_COMMAND age=0.16s
+[04:21:18] state=SAFE reason=SAFE_COMMAND
+[04:21:18] state=SAFE reason=SAFE_COMMAND
+[04:21:19] state=SAFE reason=SAFE_COMMAND
+[04:21:19] state=SAFE reason=SAFE_COMMAND age=0.16s
+[04:21:19] state=SAFE reason=SAFE_COMMAND
+[04:21:19] state=SAFE reason=SAFE_COMMAND
+[04:21:20] state=SAFE reason=SAFE_COMMAND
+[04:21:20] state=SAFE reason=SAFE_COMMAND age=0.08s
+[04:21:20] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:21:20] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:21:21] state=STOPPED reason=NAVIGATION_NOT_ACTIVE age=0.38s
+[04:21:21] state=SAFE reason=SAFE_COMMAND
+[04:21:21] state=SAFE reason=SAFE_COMMAND
+[04:21:21] state=SAFE reason=SAFE_COMMAND
+[04:21:22] state=SAFE reason=SAFE_COMMAND
+[04:21:22] state=SAFE reason=SAFE_COMMAND age=0.06s
+[04:21:22] state=SAFE reason=SAFE_COMMAND
+[04:21:22] state=SAFE reason=SAFE_COMMAND
+[04:21:23] state=SAFE reason=SAFE_COMMAND
+[04:21:23] state=SAFE reason=SAFE_COMMAND age=0.16s
+[04:21:23] state=SAFE reason=SAFE_COMMAND
+[04:21:23] state=SAFE reason=SAFE_COMMAND
+[04:21:24] state=SAFE reason=SAFE_COMMAND
+[04:21:24] state=SAFE reason=SAFE_COMMAND age=0.17s
+[04:21:24] state=SAFE reason=SAFE_COMMAND
+[04:21:24] state=SAFE reason=SAFE_COMMAND
+[04:21:25] state=SAFE reason=SAFE_COMMAND
+[04:21:25] state=SAFE reason=SAFE_COMMAND age=0.24s
+[04:21:25] state=SAFE reason=SAFE_COMMAND
+[04:21:25] state=SAFE reason=SAFE_COMMAND
+[04:21:25] state=SAFE reason=SAFE_COMMAND
+[04:21:26] state=SAFE reason=SAFE_COMMAND age=0.29s
+[04:21:26] state=SAFE reason=SAFE_COMMAND
+[04:21:26] state=SAFE reason=SAFE_COMMAND
+[04:21:26] state=SAFE reason=SAFE_COMMAND
+[04:21:27] state=SAFE reason=SAFE_COMMAND age=0.30s
+[04:21:27] state=SAFE reason=SAFE_COMMAND
+[04:21:27] state=SAFE reason=SAFE_COMMAND
+[04:21:27] state=SAFE reason=SAFE_COMMAND
+[04:21:28] state=SAFE reason=SAFE_COMMAND age=0.29s
+[04:21:28] state=SAFE reason=SAFE_COMMAND
+[04:21:28] state=SAFE reason=SAFE_COMMAND
+[04:21:29] state=SAFE reason=SAFE_COMMAND
+[04:21:29] state=SAFE reason=SAFE_COMMAND age=0.24s
+[04:21:29] state=SAFE reason=SAFE_COMMAND
+[04:21:29] state=SAFE reason=SAFE_COMMAND
+[04:21:29] state=SAFE reason=SAFE_COMMAND
+[04:21:30] state=SAFE reason=SAFE_COMMAND age=0.30s
+[04:21:30] state=SAFE reason=SAFE_COMMAND
+[04:21:30] state=SAFE reason=SAFE_COMMAND
+[04:21:30] state=SAFE reason=SAFE_COMMAND
+[04:21:31] state=SAFE reason=SAFE_COMMAND
+[04:21:31] state=SAFE reason=SAFE_COMMAND age=0.02s
+[04:21:31] state=SAFE reason=SAFE_COMMAND
+[04:21:32] state=SAFE reason=SAFE_COMMAND
+[04:21:32] state=SAFE reason=SAFE_COMMAND
+[04:21:32] state=SAFE reason=SAFE_COMMAND age=0.03s
+[04:21:32] state=SAFE reason=SAFE_COMMAND
+[04:21:32] state=SAFE reason=SAFE_COMMAND
+[04:21:33] state=SAFE reason=SAFE_COMMAND
+[04:21:33] state=SAFE reason=SAFE_COMMAND age=0.05s
+[04:21:33] state=SAFE reason=SAFE_COMMAND
+[04:21:33] state=SAFE reason=SAFE_COMMAND
+[04:21:34] state=SAFE reason=SAFE_COMMAND
+[04:21:34] state=SAFE reason=SAFE_COMMAND age=0.15s
+[04:21:34] state=SAFE reason=SAFE_COMMAND
+[04:21:34] state=SAFE reason=SAFE_COMMAND
+[04:21:35] state=SAFE reason=SAFE_COMMAND
+[04:21:35] state=SAFE reason=SAFE_COMMAND age=0.13s
+[04:21:35] state=SAFE reason=SAFE_COMMAND
+[04:21:35] state=SAFE reason=SAFE_COMMAND
+[04:21:36] state=SAFE reason=SAFE_COMMAND
+[04:21:36] state=SAFE reason=SAFE_COMMAND age=0.10s
+[04:21:36] state=SAFE reason=SAFE_COMMAND
+[04:21:36] state=SAFE reason=SAFE_COMMAND
+[04:21:37] state=SAFE reason=SAFE_COMMAND age=0.46s
+[04:21:37] state=STOPPED reason=STALE_NAVIGATION_STATE
+[04:21:37] state=SAFE reason=SAFE_COMMAND
+[04:21:37] state=SAFE reason=SAFE_COMMAND
+[04:21:38] state=SAFE reason=SAFE_COMMAND age=0.31s
+[04:21:38] state=SAFE reason=SAFE_COMMAND
+[04:21:38] state=SAFE reason=SAFE_COMMAND
+[04:21:39] state=SAFE reason=SAFE_COMMAND
+[04:21:39] state=SAFE reason=SAFE_COMMAND age=0.25s
+[04:21:39] state=SAFE reason=SAFE_COMMAND
+[04:21:39] state=SAFE reason=SAFE_COMMAND
+[04:21:40] state=SAFE reason=SAFE_COMMAND
+[04:21:40] state=SAFE reason=SAFE_COMMAND age=0.20s
+[04:21:40] state=SAFE reason=SAFE_COMMAND
+[04:21:40] state=SAFE reason=SAFE_COMMAND
+[04:21:41] state=SAFE reason=SAFE_COMMAND
+[04:21:41] state=SAFE reason=SAFE_COMMAND age=0.11s
+[04:21:41] state=SAFE reason=SAFE_COMMAND
+[04:21:41] state=SAFE reason=SAFE_COMMAND
+[04:21:42] state=SAFE reason=SAFE_COMMAND
+[04:21:42] state=SAFE reason=SAFE_COMMAND age=0.05s
+[04:21:42] state=SAFE reason=SAFE_COMMAND
+[04:21:42] state=SAFE reason=SAFE_COMMAND
+[04:21:43] state=SAFE reason=SAFE_COMMAND age=0.30s
+[04:21:43] state=SAFE reason=SAFE_COMMAND
+[04:21:43] state=SAFE reason=SAFE_COMMAND
+[04:21:44] state=SAFE reason=SAFE_COMMAND
+[04:21:44] state=SAFE reason=SAFE_COMMAND age=0.26s
+[04:21:44] state=SAFE reason=SAFE_COMMAND
+[04:21:44] state=SAFE reason=SAFE_COMMAND
+[04:21:45] state=SAFE reason=SAFE_COMMAND
+[04:21:45] state=SAFE reason=SAFE_COMMAND age=0.17s
+[04:21:45] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:21:45] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:21:46] state=SAFE reason=SAFE_COMMAND
+[04:21:46] state=SAFE reason=SAFE_COMMAND age=0.07s
+[04:21:46] state=SAFE reason=SAFE_COMMAND
+[04:21:46] state=SAFE reason=SAFE_COMMAND
+[04:21:47] state=SAFE reason=SAFE_COMMAND
+[04:21:47] state=SAFE reason=SAFE_COMMAND age=0.02s
+[04:21:47] state=SAFE reason=SAFE_COMMAND
+[04:21:47] state=SAFE reason=SAFE_COMMAND
+[04:21:48] state=SAFE reason=SAFE_COMMAND age=0.31s
+[04:21:48] state=SAFE reason=SAFE_COMMAND
+[04:21:48] state=STOPPED reason=STALE_NAVIGATION_STATE
+[04:21:49] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:21:49] state=STOPPED reason=NAVIGATION_NOT_ACTIVE age=0.15s
+[04:21:49] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:21:49] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:21:50] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:21:50] state=STOPPED reason=NAVIGATION_NOT_ACTIVE age=0.05s
+[04:21:50] state=SAFE reason=SAFE_COMMAND
+[04:21:50] state=SAFE reason=SAFE_COMMAND
+[04:21:51] state=SAFE reason=SAFE_COMMAND age=0.32s
+[04:21:51] state=SAFE reason=SAFE_COMMAND
+[04:21:51] state=SAFE reason=SAFE_COMMAND
+[04:21:52] state=SAFE reason=SAFE_COMMAND
+[04:21:52] state=SAFE reason=SAFE_COMMAND age=0.19s
+[04:21:52] state=SAFE reason=SAFE_COMMAND
+[04:21:52] state=SAFE reason=SAFE_COMMAND
+[04:21:53] state=SAFE reason=SAFE_COMMAND age=0.36s
+[04:21:53] state=STOPPED reason=STALE_NAVIGATION_STATE
+[04:21:53] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:21:54] state=STOPPED reason=STALE_NAVIGATION_STATE
+[04:21:54] state=STOPPED reason=STALE_NAVIGATION_STATE age=0.02s
+[04:21:54] state=SAFE reason=SAFE_COMMAND
+[04:21:55] state=STOPPED reason=STALE_NAVIGATION_STATE
+[04:21:55] state=STOPPED reason=STALE_NAVIGATION_STATE age=0.07s
+[04:21:55] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:21:56] state=STOPPED reason=NAVIGATION_NOT_ACTIVE age=0.54s
+[04:21:56] state=STOPPED reason=STALE_NAVIGATION_STATE
+[04:21:56] state=SAFE reason=SAFE_COMMAND
+[04:21:57] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:21:57] state=STOPPED reason=NAVIGATION_NOT_ACTIVE age=0.09s
+[04:21:57] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:21:58] state=STOPPED reason=STALE_NAVIGATION_STATE
+[04:21:58] state=STOPPED reason=STALE_NAVIGATION_STATE age=0.22s
+[04:21:58] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:21:59] state=STOPPED reason=STALE_NAVIGATION_STATE
+[04:21:59] state=STOPPED reason=STALE_NAVIGATION_STATE age=0.27s
+[04:21:59] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:22:00] state=STOPPED reason=STALE_NAVIGATION_STATE
+[04:22:00] state=STOPPED reason=STALE_NAVIGATION_STATE age=0.23s
+[04:22:00] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:22:00] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:22:01] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:22:01] state=STOPPED reason=NAVIGATION_NOT_ACTIVE age=0.01s
+[04:22:01] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:22:02] state=SAFE reason=SAFE_COMMAND
+[04:22:02] state=SAFE reason=SAFE_COMMAND age=0.25s
+[04:22:02] state=SAFE reason=SAFE_COMMAND
+[04:22:02] state=SAFE reason=SAFE_COMMAND
+[04:22:03] state=SAFE reason=SAFE_COMMAND
+[04:22:03] state=SAFE reason=SAFE_COMMAND age=0.11s
+[04:22:03] state=SAFE reason=SAFE_COMMAND
+[04:22:03] state=SAFE reason=SAFE_COMMAND
+[04:22:04] state=SAFE reason=SAFE_COMMAND
+[04:22:04] state=SAFE reason=SAFE_COMMAND age=0.03s
+[04:22:04] state=SAFE reason=SAFE_COMMAND
+[04:22:05] state=SAFE reason=SAFE_COMMAND
+[04:22:05] state=SAFE reason=SAFE_COMMAND age=0.26s
+[04:22:05] state=SAFE reason=SAFE_COMMAND
+[04:22:05] state=SAFE reason=SAFE_COMMAND
+[04:22:06] state=STOPPED reason=STALE_NAVIGATION_STATE
+[04:22:06] state=STOPPED reason=STALE_NAVIGATION_STATE age=0.09s
+[04:22:06] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:22:07] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:22:07] state=STOPPED reason=NAVIGATION_NOT_ACTIVE age=0.15s
+[04:22:07] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:22:07] state=STOPPED reason=STALE_NAVIGATION_STATE
+[04:22:08] state=STOPPED reason=STALE_NAVIGATION_STATE age=0.39s
+[04:22:08] state=SAFE reason=SAFE_COMMAND
+[04:22:08] state=SAFE reason=SAFE_COMMAND
+[04:22:08] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:22:09] state=STOPPED reason=NAVIGATION_NOT_ACTIVE age=0.31s
+[04:22:09] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:22:09] state=SAFE reason=SAFE_COMMAND
+[04:22:09] state=SAFE reason=SAFE_COMMAND
+[04:22:10] state=SAFE reason=SAFE_COMMAND age=0.30s
+[04:22:10] state=SAFE reason=SAFE_COMMAND
+[04:22:10] state=SAFE reason=SAFE_COMMAND
+[04:22:10] state=SAFE reason=SAFE_COMMAND
+[04:22:11] state=SAFE reason=SAFE_COMMAND age=0.34s
+[04:22:11] state=SAFE reason=SAFE_COMMAND
+[04:22:11] state=SAFE reason=SAFE_COMMAND
+[04:22:11] state=SAFE reason=SAFE_COMMAND
+[04:22:12] state=SAFE reason=SAFE_COMMAND
+[04:22:12] state=SAFE reason=SAFE_COMMAND age=0.01s
+[04:22:12] state=SAFE reason=SAFE_COMMAND
+[04:22:13] state=SAFE reason=SAFE_COMMAND
+[04:22:13] state=SAFE reason=SAFE_COMMAND age=0.23s
+[04:22:13] state=SAFE reason=SAFE_COMMAND
+[04:22:13] state=SAFE reason=SAFE_COMMAND
+[04:22:14] state=SAFE reason=SAFE_COMMAND
+[04:22:14] state=SAFE reason=SAFE_COMMAND age=0.25s
+[04:22:14] state=SAFE reason=SAFE_COMMAND
+[04:22:14] state=SAFE reason=SAFE_COMMAND
+[04:22:14] state=SAFE reason=SAFE_COMMAND
+[04:22:15] state=SAFE reason=SAFE_COMMAND
+[04:22:15] state=SAFE reason=SAFE_COMMAND age=0.01s
+[04:22:15] state=SAFE reason=SAFE_COMMAND
+[04:22:16] state=SAFE reason=SAFE_COMMAND
+[04:22:16] state=SAFE reason=SAFE_COMMAND age=0.25s
+[04:22:16] state=SAFE reason=SAFE_COMMAND
+[04:22:16] state=STOPPED reason=STALE_NAVIGATION_STATE
+[04:22:17] state=STOPPED reason=STALE_NAVIGATION_STATE age=0.36s
+[04:22:17] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:22:17] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:22:18] state=SAFE reason=SAFE_COMMAND
+[04:22:18] state=SAFE reason=SAFE_COMMAND
+[04:22:18] state=SAFE reason=SAFE_COMMAND age=0.06s
+[04:22:18] state=SAFE reason=SAFE_COMMAND
+[04:22:18] state=SAFE reason=SAFE_COMMAND
+[04:22:19] state=SAFE reason=SAFE_COMMAND
+[04:22:19] state=SAFE reason=SAFE_COMMAND age=0.09s
+[04:22:19] state=SAFE reason=SAFE_COMMAND
+[04:22:19] state=SAFE reason=SAFE_COMMAND
+[04:22:20] state=SAFE reason=SAFE_COMMAND
+[04:22:20] state=SAFE reason=SAFE_COMMAND age=0.17s
+[04:22:20] state=SAFE reason=SAFE_COMMAND
+[04:22:20] state=SAFE reason=SAFE_COMMAND
+[04:22:21] state=SAFE reason=SAFE_COMMAND
+[04:22:21] state=SAFE reason=SAFE_COMMAND age=0.07s
+[04:22:21] state=SAFE reason=SAFE_COMMAND
+[04:22:21] state=SAFE reason=SAFE_COMMAND
+[04:22:22] state=SAFE reason=SAFE_COMMAND
+[04:22:22] state=SAFE reason=SAFE_COMMAND age=0.15s
+[04:22:22] state=SAFE reason=SAFE_COMMAND
+[04:22:22] state=SAFE reason=SAFE_COMMAND
+[04:22:23] state=SAFE reason=SAFE_COMMAND
+[04:22:23] state=SAFE reason=SAFE_COMMAND age=0.26s
+[04:22:23] state=SAFE reason=SAFE_COMMAND
+[04:22:23] state=SAFE reason=SAFE_COMMAND
+[04:22:23] state=SAFE reason=SAFE_COMMAND
+[04:22:24] state=SAFE reason=SAFE_COMMAND
+[04:22:24] state=SAFE reason=SAFE_COMMAND age=0.07s
+[04:22:24] state=SAFE reason=SAFE_COMMAND
+[04:22:24] state=SAFE reason=SAFE_COMMAND
+[04:22:25] state=SAFE reason=SAFE_COMMAND
+[04:22:25] state=SAFE reason=SAFE_COMMAND age=0.00s
+[04:22:25] state=SAFE reason=SAFE_COMMAND
+[04:22:25] state=SAFE reason=SAFE_COMMAND
+[04:22:26] state=SAFE reason=SAFE_COMMAND
+[04:22:26] state=SAFE reason=SAFE_COMMAND age=0.09s
+[04:22:26] state=SAFE reason=SAFE_COMMAND
+[04:22:26] state=SAFE reason=SAFE_COMMAND
+[04:22:27] state=SAFE reason=SAFE_COMMAND
+[04:22:27] state=SAFE reason=SAFE_COMMAND age=0.19s
+[04:22:27] state=SAFE reason=SAFE_COMMAND
+[04:22:27] state=SAFE reason=SAFE_COMMAND
+[04:22:28] state=SAFE reason=SAFE_COMMAND
+[04:22:28] state=SAFE reason=SAFE_COMMAND age=0.22s
+[04:22:28] state=SAFE reason=SAFE_COMMAND
+[04:22:28] state=SAFE reason=SAFE_COMMAND
+[04:22:28] state=SAFE reason=SAFE_COMMAND
+[04:22:29] state=SAFE reason=SAFE_COMMAND age=0.30s
+[04:22:29] state=SAFE reason=SAFE_COMMAND
+[04:22:29] state=SAFE reason=SAFE_COMMAND
+[04:22:29] state=SAFE reason=SAFE_COMMAND
+[04:22:30] state=SAFE reason=SAFE_COMMAND
+[04:22:30] state=SAFE reason=SAFE_COMMAND age=0.08s
+[04:22:30] state=SAFE reason=SAFE_COMMAND
+[04:22:30] state=SAFE reason=SAFE_COMMAND
+[04:22:31] state=SAFE reason=SAFE_COMMAND
+[04:22:31] state=SAFE reason=SAFE_COMMAND age=0.10s
+[04:22:31] state=SAFE reason=SAFE_COMMAND
+[04:22:31] state=SAFE reason=SAFE_COMMAND
+[04:22:31] state=SAFE reason=SAFE_COMMAND
+[04:22:32] state=SAFE reason=SAFE_COMMAND
+[04:22:32] state=SAFE reason=SAFE_COMMAND age=0.06s
+[04:22:32] state=SAFE reason=SAFE_COMMAND
+[04:22:32] state=SAFE reason=SAFE_COMMAND
+[04:22:33] state=SAFE reason=SAFE_COMMAND
+[04:22:33] state=SAFE reason=SAFE_COMMAND age=0.27s
+[04:22:33] state=SAFE reason=SAFE_COMMAND
+[04:22:33] state=SAFE reason=SAFE_COMMAND
+[04:22:34] state=SAFE reason=SAFE_COMMAND
+[04:22:34] state=SAFE reason=SAFE_COMMAND
+[04:22:34] state=SAFE reason=SAFE_COMMAND age=0.01s
+[04:22:34] state=SAFE reason=SAFE_COMMAND
+[04:22:34] state=SAFE reason=SAFE_COMMAND
+[04:22:35] state=SAFE reason=SAFE_COMMAND
+[04:22:35] state=SAFE reason=SAFE_COMMAND age=0.15s
+[04:22:35] state=SAFE reason=SAFE_COMMAND
+[04:22:35] state=SAFE reason=SAFE_COMMAND
+[04:22:36] state=SAFE reason=SAFE_COMMAND
+[04:22:36] state=SAFE reason=SAFE_COMMAND age=0.22s
+[04:22:36] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:22:36] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:22:36] state=SAFE reason=SAFE_COMMAND
+[04:22:37] state=SAFE reason=SAFE_COMMAND
+[04:22:37] state=SAFE reason=SAFE_COMMAND age=0.04s
+[04:22:37] state=SAFE reason=SAFE_COMMAND
+[04:22:37] state=SAFE reason=SAFE_COMMAND
+[04:22:38] state=SAFE reason=SAFE_COMMAND
+[04:22:38] state=SAFE reason=SAFE_COMMAND age=0.16s
+[04:22:38] state=SAFE reason=SAFE_COMMAND
+[04:22:38] state=SAFE reason=SAFE_COMMAND
+[04:22:38] state=SAFE reason=SAFE_COMMAND
+[04:22:39] state=SAFE reason=SAFE_COMMAND
+[04:22:39] state=SAFE reason=SAFE_COMMAND age=0.05s
+[04:22:39] state=SAFE reason=SAFE_COMMAND
+[04:22:39] state=SAFE reason=SAFE_COMMAND
+[04:22:40] state=SAFE reason=SAFE_COMMAND
+[04:22:40] state=SAFE reason=SAFE_COMMAND age=0.18s
+[04:22:40] state=SAFE reason=SAFE_COMMAND
+[04:22:40] state=SAFE reason=SAFE_COMMAND
+[04:22:40] state=SAFE reason=SAFE_COMMAND
+[04:22:41] state=SAFE reason=SAFE_COMMAND
+[04:22:41] state=SAFE reason=SAFE_COMMAND age=0.09s
+[04:22:41] state=SAFE reason=SAFE_COMMAND
+[04:22:41] state=SAFE reason=SAFE_COMMAND
+[04:22:42] state=SAFE reason=SAFE_COMMAND
+[04:22:42] state=SAFE reason=SAFE_COMMAND age=0.24s
+[04:22:42] state=SAFE reason=SAFE_COMMAND
+[04:22:42] state=SAFE reason=SAFE_COMMAND
+[04:22:42] state=SAFE reason=SAFE_COMMAND
+[04:22:43] state=SAFE reason=SAFE_COMMAND
+[04:22:43] state=SAFE reason=SAFE_COMMAND age=0.12s
+[04:22:43] state=SAFE reason=SAFE_COMMAND
+[04:22:43] state=SAFE reason=SAFE_COMMAND
+[04:22:44] state=SAFE reason=SAFE_COMMAND
+[04:22:44] state=SAFE reason=SAFE_COMMAND age=0.28s
+[04:22:44] state=SAFE reason=SAFE_COMMAND
+[04:22:44] state=SAFE reason=SAFE_COMMAND
+[04:22:44] state=SAFE reason=SAFE_COMMAND
+[04:22:45] state=SAFE reason=SAFE_COMMAND
+[04:22:45] state=SAFE reason=SAFE_COMMAND age=0.07s
+[04:22:45] state=SAFE reason=SAFE_COMMAND
+[04:22:45] state=SAFE reason=SAFE_COMMAND
+[04:22:46] state=SAFE reason=SAFE_COMMAND
+[04:22:46] state=SAFE reason=SAFE_COMMAND age=0.26s
+[04:22:46] state=SAFE reason=SAFE_COMMAND
+[04:22:46] state=SAFE reason=SAFE_COMMAND
+[04:22:46] state=SAFE reason=SAFE_COMMAND
+[04:22:47] state=SAFE reason=SAFE_COMMAND
+[04:22:47] state=SAFE reason=SAFE_COMMAND age=0.00s
+[04:22:47] state=SAFE reason=SAFE_COMMAND
+[04:22:47] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:22:48] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:22:48] state=STOPPED reason=NAVIGATION_NOT_ACTIVE age=0.13s
+[04:22:48] state=SAFE reason=SAFE_COMMAND
+[04:22:48] state=SAFE reason=SAFE_COMMAND
+[04:22:49] state=SAFE reason=SAFE_COMMAND
+[04:22:49] state=SAFE reason=SAFE_COMMAND
+[04:22:49] state=SAFE reason=SAFE_COMMAND age=0.02s
+[04:22:49] state=SAFE reason=SAFE_COMMAND
+[04:22:49] state=SAFE reason=SAFE_COMMAND
+[04:22:50] state=SAFE reason=SAFE_COMMAND
+[04:22:50] state=SAFE reason=SAFE_COMMAND age=0.16s
+[04:22:50] state=SAFE reason=SAFE_COMMAND
+[04:22:50] state=SAFE reason=SAFE_COMMAND
+[04:22:50] state=SAFE reason=SAFE_COMMAND
+[04:22:51] state=SAFE reason=SAFE_COMMAND
+[04:22:51] state=SAFE reason=SAFE_COMMAND age=0.03s
+[04:22:51] state=SAFE reason=SAFE_COMMAND
+[04:22:51] state=SAFE reason=SAFE_COMMAND
+[04:22:52] state=SAFE reason=SAFE_COMMAND
+[04:22:52] state=SAFE reason=SAFE_COMMAND age=0.18s
+[04:22:52] state=SAFE reason=SAFE_COMMAND
+[04:22:52] state=SAFE reason=SAFE_COMMAND
+[04:22:52] state=SAFE reason=SAFE_COMMAND
+[04:22:53] state=SAFE reason=SAFE_COMMAND
+[04:22:53] state=SAFE reason=SAFE_COMMAND age=0.18s
+[04:22:53] state=SAFE reason=SAFE_COMMAND
+[04:22:53] state=SAFE reason=SAFE_COMMAND
+[04:22:53] state=SAFE reason=SAFE_COMMAND
+[04:22:54] state=SAFE reason=SAFE_COMMAND
+[04:22:54] state=SAFE reason=SAFE_COMMAND age=0.09s
+[04:22:54] state=SAFE reason=SAFE_COMMAND
+[04:22:54] state=SAFE reason=SAFE_COMMAND
+[04:22:55] state=SAFE reason=SAFE_COMMAND
+[04:22:55] state=SAFE reason=SAFE_COMMAND age=0.16s
+[04:22:55] state=SAFE reason=SAFE_COMMAND
+[04:22:55] state=SAFE reason=SAFE_COMMAND
+[04:22:56] state=SAFE reason=SAFE_COMMAND
+[04:22:56] state=SAFE reason=SAFE_COMMAND age=0.25s
+[04:22:56] state=SAFE reason=SAFE_COMMAND
+[04:22:56] state=SAFE reason=SAFE_COMMAND
+[04:22:56] state=SAFE reason=SAFE_COMMAND
+[04:22:57] state=SAFE reason=SAFE_COMMAND age=0.28s
+[04:22:57] state=SAFE reason=SAFE_COMMAND
+[04:22:57] state=SAFE reason=SAFE_COMMAND
+[04:22:57] state=SAFE reason=SAFE_COMMAND
+[04:22:58] state=SAFE reason=SAFE_COMMAND
+[04:22:58] state=SAFE reason=SAFE_COMMAND age=0.17s
+[04:22:58] state=SAFE reason=SAFE_COMMAND
+[04:22:58] state=SAFE reason=SAFE_COMMAND
+[04:22:59] state=SAFE reason=SAFE_COMMAND
+[04:22:59] state=SAFE reason=SAFE_COMMAND age=0.27s
+[04:22:59] state=SAFE reason=SAFE_COMMAND
+[04:22:59] state=SAFE reason=SAFE_COMMAND
+[04:22:59] state=SAFE reason=SAFE_COMMAND
+[04:23:00] state=SAFE reason=SAFE_COMMAND
+[04:23:00] state=SAFE reason=SAFE_COMMAND age=0.17s
+[04:23:00] state=SAFE reason=SAFE_COMMAND
+[04:23:00] state=SAFE reason=SAFE_COMMAND
+[04:23:00] state=SAFE reason=SAFE_COMMAND
+[04:23:01] state=SAFE reason=SAFE_COMMAND
+[04:23:01] state=SAFE reason=SAFE_COMMAND age=0.07s
+[04:23:01] state=SAFE reason=SAFE_COMMAND
+[04:23:01] state=SAFE reason=SAFE_COMMAND
+[04:23:02] state=SAFE reason=SAFE_COMMAND
+[04:23:02] state=SAFE reason=SAFE_COMMAND age=0.21s
+[04:23:02] state=SAFE reason=SAFE_COMMAND
+[04:23:02] state=SAFE reason=SAFE_COMMAND
+[04:23:03] state=SAFE reason=SAFE_COMMAND
+[04:23:03] state=SAFE reason=SAFE_COMMAND age=0.21s
+[04:23:03] state=SAFE reason=SAFE_COMMAND
+[04:23:03] state=SAFE reason=SAFE_COMMAND
+[04:23:03] state=SAFE reason=SAFE_COMMAND
+[04:23:04] state=SAFE reason=SAFE_COMMAND
+[04:23:04] state=SAFE reason=SAFE_COMMAND age=0.05s
+[04:23:04] state=SAFE reason=SAFE_COMMAND
+[04:23:04] state=SAFE reason=SAFE_COMMAND
+[04:23:05] state=SAFE reason=SAFE_COMMAND
+[04:23:05] state=SAFE reason=SAFE_COMMAND age=0.19s
+[04:23:05] state=SAFE reason=SAFE_COMMAND
+[04:23:05] state=SAFE reason=SAFE_COMMAND
+[04:23:06] state=SAFE reason=SAFE_COMMAND
+[04:23:06] state=SAFE reason=SAFE_COMMAND age=0.25s
+[04:23:06] state=SAFE reason=SAFE_COMMAND
+[04:23:06] state=SAFE reason=SAFE_COMMAND
+[04:23:06] state=SAFE reason=SAFE_COMMAND
+[04:23:07] state=SAFE reason=SAFE_COMMAND
+[04:23:07] state=SAFE reason=SAFE_COMMAND age=0.01s
+[04:23:07] state=SAFE reason=SAFE_COMMAND
+[04:23:07] state=SAFE reason=SAFE_COMMAND
+[04:23:08] state=SAFE reason=SAFE_COMMAND
+[04:23:08] state=SAFE reason=SAFE_COMMAND age=0.13s
+[04:23:08] state=SAFE reason=SAFE_COMMAND
+[04:23:08] state=SAFE reason=SAFE_COMMAND
+[04:23:09] state=SAFE reason=SAFE_COMMAND
+[04:23:09] state=SAFE reason=SAFE_COMMAND age=0.20s
+[04:23:09] state=SAFE reason=SAFE_COMMAND
+[04:23:09] state=SAFE reason=SAFE_COMMAND
+[04:23:10] state=SAFE reason=SAFE_COMMAND
+[04:23:10] state=SAFE reason=SAFE_COMMAND age=0.26s
+[04:23:10] state=SAFE reason=SAFE_COMMAND
+[04:23:10] state=SAFE reason=SAFE_COMMAND
+[04:23:10] state=SAFE reason=SAFE_COMMAND
+[04:23:11] state=SAFE reason=SAFE_COMMAND
+[04:23:11] state=SAFE reason=SAFE_COMMAND age=0.05s
+[04:23:11] state=SAFE reason=SAFE_COMMAND
+[04:23:11] state=SAFE reason=SAFE_COMMAND
+[04:23:12] state=SAFE reason=SAFE_COMMAND
+[04:23:12] state=SAFE reason=SAFE_COMMAND age=0.07s
+[04:23:12] state=SAFE reason=SAFE_COMMAND
+[04:23:12] state=SAFE reason=SAFE_COMMAND
+[04:23:13] state=SAFE reason=SAFE_COMMAND
+[04:23:13] state=SAFE reason=SAFE_COMMAND age=0.26s
+[04:23:13] state=SAFE reason=SAFE_COMMAND
+[04:23:13] state=SAFE reason=SAFE_COMMAND
+[04:23:13] state=SAFE reason=SAFE_COMMAND
+[04:23:14] state=SAFE reason=SAFE_COMMAND
+[04:23:14] state=SAFE reason=SAFE_COMMAND age=0.02s
+[04:23:14] state=SAFE reason=SAFE_COMMAND
+[04:23:14] state=SAFE reason=SAFE_COMMAND
+[04:23:15] state=SAFE reason=SAFE_COMMAND
+[04:23:15] state=SAFE reason=SAFE_COMMAND age=0.16s
+[04:23:15] state=SAFE reason=SAFE_COMMAND
+[04:23:15] state=SAFE reason=SAFE_COMMAND
+[04:23:16] state=SAFE reason=SAFE_COMMAND
+[04:23:16] state=SAFE reason=SAFE_COMMAND age=0.21s
+[04:23:16] state=SAFE reason=SAFE_COMMAND
+[04:23:16] state=SAFE reason=SAFE_COMMAND
+[04:23:17] state=SAFE reason=SAFE_COMMAND
+[04:23:17] state=SAFE reason=SAFE_COMMAND age=0.25s
+[04:23:17] state=SAFE reason=SAFE_COMMAND
+[04:23:17] state=SAFE reason=SAFE_COMMAND
+[04:23:17] state=SAFE reason=SAFE_COMMAND
+[04:23:18] state=SAFE reason=SAFE_COMMAND
+[04:23:18] state=SAFE reason=SAFE_COMMAND age=0.06s
+[04:23:18] state=SAFE reason=SAFE_COMMAND
+[04:23:18] state=SAFE reason=SAFE_COMMAND
+[04:23:19] state=SAFE reason=SAFE_COMMAND
+[04:23:19] state=SAFE reason=SAFE_COMMAND age=0.18s
+[04:23:19] state=SAFE reason=SAFE_COMMAND
+[04:23:19] state=SAFE reason=SAFE_COMMAND
+[04:23:19] state=SAFE reason=SAFE_COMMAND
+[04:23:20] state=SAFE reason=SAFE_COMMAND age=0.30s
+[04:23:20] state=SAFE reason=SAFE_COMMAND
+[04:23:20] state=SAFE reason=SAFE_COMMAND
+[04:23:20] state=SAFE reason=SAFE_COMMAND
+[04:23:21] state=SAFE reason=SAFE_COMMAND
+[04:23:21] state=SAFE reason=SAFE_COMMAND age=0.13s
+[04:23:21] state=SAFE reason=SAFE_COMMAND
+[04:23:21] state=SAFE reason=SAFE_COMMAND
+[04:23:22] state=SAFE reason=SAFE_COMMAND
+[04:23:22] state=SAFE reason=SAFE_COMMAND age=0.18s
+[04:23:22] state=SAFE reason=SAFE_COMMAND
+[04:23:22] state=SAFE reason=SAFE_COMMAND
+[04:23:22] state=SAFE reason=SAFE_COMMAND
+[04:23:23] state=SAFE reason=SAFE_COMMAND age=0.31s
+[04:23:23] state=SAFE reason=SAFE_COMMAND
+[04:23:23] state=SAFE reason=SAFE_COMMAND
+[04:23:23] state=SAFE reason=SAFE_COMMAND
+[04:23:24] state=SAFE reason=SAFE_COMMAND age=0.37s
+[04:23:24] state=SAFE reason=SAFE_COMMAND
+[04:23:24] state=SAFE reason=SAFE_COMMAND
+[04:23:24] state=SAFE reason=SAFE_COMMAND
+[04:23:25] state=SAFE reason=SAFE_COMMAND
+[04:23:25] state=SAFE reason=SAFE_COMMAND age=0.12s
+[04:23:25] state=SAFE reason=SAFE_COMMAND
+[04:23:25] state=SAFE reason=SAFE_COMMAND
+[04:23:26] state=SAFE reason=SAFE_COMMAND
+[04:23:26] state=SAFE reason=SAFE_COMMAND age=0.20s
+[04:23:26] state=SAFE reason=SAFE_COMMAND
+[04:23:26] state=SAFE reason=SAFE_COMMAND
+[04:23:26] state=SAFE reason=SAFE_COMMAND
+[04:23:27] state=SAFE reason=SAFE_COMMAND
+[04:23:27] state=SAFE reason=SAFE_COMMAND age=0.04s
+[04:23:27] state=SAFE reason=SAFE_COMMAND
+[04:23:27] state=SAFE reason=SAFE_COMMAND
+[04:23:28] state=SAFE reason=SAFE_COMMAND
+[04:23:28] state=SAFE reason=SAFE_COMMAND age=0.27s
+[04:23:28] state=SAFE reason=SAFE_COMMAND
+[04:23:28] state=SAFE reason=SAFE_COMMAND
+[04:23:28] state=SAFE reason=SAFE_COMMAND
+[04:23:29] state=SAFE reason=SAFE_COMMAND
+[04:23:29] state=SAFE reason=SAFE_COMMAND age=0.15s
+[04:23:29] state=SAFE reason=SAFE_COMMAND
+[04:23:29] state=SAFE reason=SAFE_COMMAND
+[04:23:29] state=SAFE reason=SAFE_COMMAND
+[04:23:30] state=SAFE reason=SAFE_COMMAND
+[04:23:30] state=SAFE reason=SAFE_COMMAND age=0.02s
+[04:23:30] state=SAFE reason=SAFE_COMMAND
+[04:23:30] state=SAFE reason=SAFE_COMMAND
+[04:23:31] state=SAFE reason=SAFE_COMMAND
+[04:23:31] state=SAFE reason=SAFE_COMMAND age=0.20s
+[04:23:31] state=SAFE reason=SAFE_COMMAND
+[04:23:31] state=SAFE reason=SAFE_COMMAND
+[04:23:31] state=SAFE reason=SAFE_COMMAND
+[04:23:32] state=SAFE reason=SAFE_COMMAND
+[04:23:32] state=SAFE reason=SAFE_COMMAND age=0.13s
+[04:23:32] state=SAFE reason=SAFE_COMMAND
+[04:23:32] state=SAFE reason=SAFE_COMMAND
+[04:23:33] state=SAFE reason=SAFE_COMMAND
+[04:23:33] state=SAFE reason=SAFE_COMMAND age=0.26s
+[04:23:33] state=SAFE reason=SAFE_COMMAND
+[04:23:33] state=SAFE reason=SAFE_COMMAND
+[04:23:33] state=SAFE reason=SAFE_COMMAND
+[04:23:34] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:23:34] state=STOPPED reason=NAVIGATION_NOT_ACTIVE age=0.15s
+[04:23:34] state=STOPPED reason=NAVIGATION_NOT_ACTIVE
+[04:23:34] state=SAFE reason=SAFE_COMMAND
+[04:23:34] state=SAFE reason=SAFE_COMMAND
+[04:23:35] state=SAFE reason=SAFE_COMMAND
+[04:23:35] state=SAFE reason=SAFE_COMMAND age=0.00s
+[04:23:35] state=SAFE reason=SAFE_COMMAND
+[04:23:35] state=SAFE reason=SAFE_COMMAND
+[04:23:36] state=SAFE reason=SAFE_COMMAND
+[04:23:36] state=SAFE reason=SAFE_COMMAND age=0.18s
+[04:23:36] state=SAFE reason=SAFE_COMMAND
+[04:23:36] state=SAFE reason=SAFE_COMMAND
+[04:23:36] state=SAFE reason=SAFE_COMMAND
+[04:23:37] state=SAFE reason=SAFE_COMMAND
+[04:23:37] state=SAFE reason=SAFE_COMMAND age=0.02s
+[04:23:37] state=SAFE reason=SAFE_COMMAND
+[04:23:37] state=SAFE reason=SAFE_COMMAND
+[04:23:38] state=SAFE reason=SAFE_COMMAND
+[04:23:38] state=SAFE reason=SAFE_COMMAND age=0.13s
+[04:23:38] state=SAFE reason=SAFE_COMMAND
+[04:23:38] state=SAFE reason=SAFE_COMMAND
+[04:23:39] state=SAFE reason=SAFE_COMMAND
+[04:23:39] state=SAFE reason=SAFE_COMMAND age=0.22s

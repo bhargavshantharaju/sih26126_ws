@@ -1,0 +1,166 @@
+<?xml version="1.0" ?>
+<sdf version="1.9">
+  <world name="forest_hills">
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/>
+
+    <scene>
+      <ambient>0.48 0.54 0.46 1</ambient>
+      <background>0.70 0.82 0.88 1</background>
+      <shadows>true</shadows>
+    </scene>
+
+    <light name="sun" type="directional">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 25 0 0 0</pose>
+      <diffuse>0.90 0.86 0.76 1</diffuse>
+      <specular>0.24 0.22 0.18 1</specular>
+      <direction>-0.40 0.35 -0.88</direction>
+    </light>
+
+    <!-- Rolling hills terrain with collision and visual geometry -->
+    <model name="hills_terrain">
+      <static>true</static>
+      <link name="terrain_link">
+        <collision name="terrain_collision">
+          <geometry>
+            <heightmap>
+              <uri>worlds/showcase_heightmap.png</uri>
+              <size>60 50 4</size>
+              <pos>0 0 0</pos>
+            </heightmap>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>1.1</mu>
+                <mu2>1.1</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="terrain_visual">
+          <geometry>
+            <mesh>
+              <uri>worlds/showcase_terrain.stl</uri>
+              <scale>0.75 0.83 0.80</scale>
+            </mesh>
+          </geometry>
+          <material>
+            <ambient>0.32 0.40 0.22 1</ambient>
+            <diffuse>0.40 0.50 0.28 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- UGV spawn on flat clearing -->
+    <include>
+      <uri>models/sih_ugv/sih_ugv.sdf</uri>
+      <name>sih_ugv</name>
+      <pose>0 0 0.05 0 0 0</pose>
+    </include>
+
+    <!-- Forest cluster 1: Northwest clearing with scattered pines -->
+    <model name="tree_nw_01"><static>true</static><pose>-8.5 12.0 0.2 0 0 0</pose><link name="link">
+      <collision name="trunk"><geometry><cylinder><radius>0.24</radius><length>3.5</length></cylinder></geometry><pose>0 0 1.75 0 0 0</pose></collision>
+      <visual name="trunk"><geometry><cylinder><radius>0.24</radius><length>3.5</length></cylinder></geometry><pose>0 0 1.75 0 0 0</pose><material><ambient>0.28 0.15 0.08 1</ambient><diffuse>0.36 0.20 0.11 1</diffuse></material></visual>
+      <visual name="crown"><geometry><cone><radius>1.2</radius><length>2.8</length></cone></geometry><pose>0 0 3.6 0 0 0</pose><material><ambient>0.09 0.28 0.12 1</ambient><diffuse>0.14 0.40 0.16 1</diffuse></material></visual>
+    </link></model>
+
+    <model name="tree_nw_02"><static>true</static><pose>-10.2 14.5 0.3 0 0 0.3</pose><link name="link">
+      <collision name="trunk"><geometry><cylinder><radius>0.20</radius><length>3.0</length></cylinder></geometry><pose>0 0 1.5 0 0 0</pose></collision>
+      <visual name="trunk"><geometry><cylinder><radius>0.20</radius><length>3.0</length></cylinder></geometry><pose>0 0 1.5 0 0 0</pose><material><ambient>0.28 0.15 0.08 1</ambient><diffuse>0.36 0.20 0.11 1</diffuse></material></visual>
+      <visual name="crown"><geometry><cone><radius>1.0</radius><length>2.3</length></cone></geometry><pose>0 0 3.1 0 0 0</pose><material><ambient>0.09 0.28 0.12 1</ambient><diffuse>0.14 0.40 0.16 1</diffuse></material></visual>
+    </link></model>
+
+    <model name="tree_nw_03"><static>true</static><pose>-6.8 13.8 0.25 0 0 0.6</pose><link name="link">
+      <collision name="trunk"><geometry><cylinder><radius>0.26</radius><length>3.8</length></cylinder></geometry><pose>0 0 1.9 0 0 0</pose></collision>
+      <visual name="trunk"><geometry><cylinder><radius>0.26</radius><length>3.8</length></cylinder></geometry><pose>0 0 1.9 0 0 0</pose><material><ambient>0.28 0.15 0.08 1</ambient><diffuse>0.36 0.20 0.11 1</diffuse></material></visual>
+      <visual name="crown"><geometry><cone><radius>1.25</radius><length>3.0</length></cone></geometry><pose>0 0 3.9 0 0 0</pose><material><ambient>0.08 0.26 0.11 1</ambient><diffuse>0.12 0.38 0.15 1</diffuse></material></visual>
+    </link></model>
+
+    <!-- Forest cluster 2: East trail with mixed hardwoods -->
+    <model name="tree_e_01"><static>true</static><pose>14.0 3.5 0.4 0 0 0</pose><link name="link">
+      <collision name="trunk"><geometry><cylinder><radius>0.22</radius><length>3.2</length></cylinder></geometry><pose>0 0 1.6 0 0 0</pose></collision>
+      <visual name="trunk"><geometry><cylinder><radius>0.22</radius><length>3.2</length></cylinder></geometry><pose>0 0 1.6 0 0 0</pose><material><ambient>0.30 0.16 0.07 1</ambient><diffuse>0.38 0.22 0.10 1</diffuse></material></visual>
+      <visual name="crown"><geometry><cone><radius>1.1</radius><length>2.5</length></cone></geometry><pose>0 0 3.3 0 0 0</pose><material><ambient>0.10 0.30 0.13 1</ambient><diffuse>0.15 0.42 0.18 1</diffuse></material></visual>
+    </link></model>
+
+    <model name="tree_e_02"><static>true</static><pose>15.8 1.2 0.35 0 0 -0.4</pose><link name="link">
+      <collision name="trunk"><geometry><cylinder><radius>0.19</radius><length>2.9</length></cylinder></geometry><pose>0 0 1.45 0 0 0</pose></collision>
+      <visual name="trunk"><geometry><cylinder><radius>0.19</radius><length>2.9</length></cylinder></geometry><pose>0 0 1.45 0 0 0</pose><material><ambient>0.30 0.16 0.07 1</ambient><diffuse>0.38 0.22 0.10 1</diffuse></material></visual>
+      <visual name="crown"><geometry><cone><radius>0.95</radius><length>2.2</length></cone></geometry><pose>0 0 2.95 0 0 0</pose><material><ambient>0.10 0.30 0.13 1</ambient><diffuse>0.15 0.42 0.18 1</diffuse></material></visual>
+    </link></model>
+
+    <model name="tree_e_03"><static>true</static><pose>16.5 -1.0 0.38 0 0 0.2</pose><link name="link">
+      <collision name="trunk"><geometry><cylinder><radius>0.23</radius><length>3.4</length></cylinder></geometry><pose>0 0 1.7 0 0 0</pose></collision>
+      <visual name="trunk"><geometry><cylinder><radius>0.23</radius><length>3.4</length></cylinder></geometry><pose>0 0 1.7 0 0 0</pose><material><ambient>0.30 0.16 0.07 1</ambient><diffuse>0.38 0.22 0.10 1</diffuse></material></visual>
+      <visual name="crown"><geometry><cone><radius>1.15</radius><length>2.7</length></cone></geometry><pose>0 0 3.5 0 0 0</pose><material><ambient>0.09 0.28 0.12 1</ambient><diffuse>0.13 0.40 0.17 1</diffuse></material></visual>
+    </link></model>
+
+    <!-- Forest cluster 3: South hillside dense pines -->
+    <model name="tree_s_01"><static>true</static><pose>4.5 -12.0 0.5 0 0 0</pose><link name="link">
+      <collision name="trunk"><geometry><cylinder><radius>0.21</radius><length>3.1</length></cylinder></geometry><pose>0 0 1.55 0 0 0</pose></collision>
+      <visual name="trunk"><geometry><cylinder><radius>0.21</radius><length>3.1</length></cylinder></geometry><pose>0 0 1.55 0 0 0</pose><material><ambient>0.28 0.15 0.08 1</ambient><diffuse>0.36 0.20 0.11 1</diffuse></material></visual>
+      <visual name="crown"><geometry><cone><radius>1.05</radius><length>2.4</length></cone></geometry><pose>0 0 3.2 0 0 0</pose><material><ambient>0.09 0.28 0.12 1</ambient><diffuse>0.14 0.40 0.16 1</diffuse></material></visual>
+    </link></model>
+
+    <model name="tree_s_02"><static>true</static><pose>7.2 -13.5 0.6 0 0 0.5</pose><link name="link">
+      <collision name="trunk"><geometry><cylinder><radius>0.25</radius><length>3.6</length></cylinder></geometry><pose>0 0 1.8 0 0 0</pose></collision>
+      <visual name="trunk"><geometry><cylinder><radius>0.25</radius><length>3.6</length></cylinder></geometry><pose>0 0 1.8 0 0 0</pose><material><ambient>0.28 0.15 0.08 1</ambient><diffuse>0.36 0.20 0.11 1</diffuse></material></visual>
+      <visual name="crown"><geometry><cone><radius>1.18</radius><length>2.8</length></cone></geometry><pose>0 0 3.7 0 0 0</pose><material><ambient>0.08 0.26 0.11 1</ambient><diffuse>0.12 0.38 0.15 1</diffuse></material></visual>
+    </link></model>
+
+    <model name="tree_s_03"><static>true</static><pose>6.0 -15.2 0.65 0 0 -0.3</pose><link name="link">
+      <collision name="trunk"><geometry><cylinder><radius>0.18</radius><length>2.8</length></cylinder></geometry><pose>0 0 1.4 0 0 0</pose></collision>
+      <visual name="trunk"><geometry><cylinder><radius>0.18</radius><length>2.8</length></cylinder></geometry><pose>0 0 1.4 0 0 0</pose><material><ambient>0.28 0.15 0.08 1</ambient><diffuse>0.36 0.20 0.11 1</diffuse></material></visual>
+      <visual name="crown"><geometry><cone><radius>0.92</radius><length>2.1</length></cone></geometry><pose>0 0 2.85 0 0 0</pose><material><ambient>0.09 0.28 0.12 1</ambient><diffuse>0.14 0.40 0.16 1</diffuse></material></visual>
+    </link></model>
+
+    <!-- Scattered vegetation and boulders for navigable complexity -->
+    <model name="rock_01"><static>true</static><pose>-3.5 8.0 0.15 0 0 0.7</pose><link name="link">
+      <collision name="collision"><geometry><sphere><radius>0.55</radius></sphere></geometry></collision>
+      <visual name="visual"><geometry><sphere><radius>0.55</radius></sphere></geometry><material><ambient>0.42 0.40 0.38 1</ambient><diffuse>0.52 0.50 0.48 1</diffuse></material></visual>
+    </link></model>
+
+    <model name="rock_02"><static>true</static><pose>10.5 -6.0 0.3 0 0 -0.5</pose><link name="link">
+      <collision name="collision"><geometry><sphere><radius>0.48</radius></sphere></geometry></collision>
+      <visual name="visual"><geometry><sphere><radius>0.48</radius></sphere></geometry><material><ambient>0.44 0.42 0.40 1</ambient><diffuse>0.54 0.52 0.50 1</diffuse></material></visual>
+    </link></model>
+
+    <model name="rock_03"><static>true</static><pose>-12.0 -4.5 0.12 0 0 0.3</pose><link name="link">
+      <collision name="collision"><geometry><box><size>1.2 0.9 0.6</size></box></geometry></collision>
+      <visual name="visual"><geometry><box><size>1.2 0.9 0.6</size></box></geometry><material><ambient>0.40 0.38 0.36 1</ambient><diffuse>0.50 0.48 0.46 1</diffuse></material></visual>
+    </link></model>
+
+    <!-- Low bushes for visual detail (no collision for navigation) -->
+    <model name="bush_01"><static>true</static><pose>2.5 5.0 0.08 0 0 0</pose><link name="link">
+      <visual name="visual"><geometry><sphere><radius>0.35</radius></sphere></geometry><material><ambient>0.14 0.32 0.16 1</ambient><diffuse>0.20 0.44 0.22 1</diffuse></material></visual>
+    </link></model>
+
+    <model name="bush_02"><static>true</static><pose>-5.0 -7.5 0.12 0 0 0</pose><link name="link">
+      <visual name="visual"><geometry><sphere><radius>0.40</radius></sphere></geometry><material><ambient>0.14 0.32 0.16 1</ambient><diffuse>0.20 0.44 0.22 1</diffuse></material></visual>
+    </link></model>
+
+    <model name="bush_03"><static>true</static><pose>8.0 8.5 0.18 0 0 0</pose><link name="link">
+      <visual name="visual"><geometry><sphere><radius>0.32</radius></sphere></geometry><material><ambient>0.14 0.32 0.16 1</ambient><diffuse>0.20 0.44 0.22 1</diffuse></material></visual>
+    </link></model>
+
+    <!-- Open clearings for exploration and navigation -->
+    <!-- Central clearing around spawn: -2 to 2 x/y -->
+    <!-- Northwest clearing: -12 to -6 x, 10 to 16 y -->
+    <!-- East trail: 12 to 18 x, -4 to 6 y -->
+    <!-- South valley: 2 to 10 x, -17 to -10 y -->
+
+  </world>
+</sdf>

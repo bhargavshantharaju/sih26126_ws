@@ -76,7 +76,7 @@ def generate_launch_description():
     scenario = LaunchConfiguration('scenario')
     # Backward compatibility: dynamic_obstacle_demo is deprecated but still supported
     dynamic_obstacle_demo = LaunchConfiguration('dynamic_obstacle_demo')
-
+    gui_stream = LaunchConfiguration('gui_stream')
     # Determine if we're running the dynamic obstacle scenario
     # Support both new scenario:= and legacy dynamic_obstacle_demo:= parameters
     is_dynamic_obstacle = PythonExpression([
@@ -154,35 +154,50 @@ def generate_launch_description():
         'dynamic_obstacle_demo', default_value='false',
         description='[Deprecated] Use scenario:= instead. Enable Objective 4 scenario.',
     )
+    gui_stream_arg = DeclareLaunchArgument(
+        'gui_stream', default_value='false',
+        description=(
+            'Embed the Gazebo GUI inside the DRISTHI browser dashboard. '
+            'Requires: xvfb, x11vnc, websockify, novnc.  '
+            'Starts gz sim -g on a virtual display and streams it via noVNC.  '
+            'All traffic is localhost-only; the Gazebo simulation server must '
+            'already be running (gazebo_headless or gui).  '
+            'View at http://localhost:<dashboard_port> in the Gazebo Simulator panel.'
+        ),
+    )
 
     # --------------------------------------------------------------- Gazebo
     gazebo_gui = ExecuteProcess(
         cmd=[gz, 'sim', '-r', world],
         condition=IfCondition(gui),
         cwd=sim_share,
-        additional_env={'GZ_SIM_RESOURCE_PATH': sim_share},
+        additional_env={'GZ_SIM_RESOURCE_PATH': f'{sim_share}/models'},
         output='screen',
     )
     gazebo_headless = ExecuteProcess(
         cmd=[gz, 'sim', '-s', '-r', world],
         condition=UnlessCondition(gui),
         cwd=sim_share,
-        additional_env={'GZ_SIM_RESOURCE_PATH': sim_share},
+        additional_env={'GZ_SIM_RESOURCE_PATH': f'{sim_share}/models'},
         output='screen',
     )
 
     # ---------------------------------------------------------------- bridge
+    # /clock MUST be explicitly bridged. ros_gz_bridge does NOT automatically
+    # bridge /clock. Without this entry all nodes with use_sim_time=True block
+    # indefinitely waiting for ROS time and no sensors, SLAM, EKF, or planner
+    # output will flow.
     bridge = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
         name='sih26126_bridge',
         output='screen',
         arguments=[
+            '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
             '/imu@sensor_msgs/msg/Imu[gz.msgs.IMU',
             '/camera@sensor_msgs/msg/Image[gz.msgs.Image',
             '/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo',
             '/depth_camera/points@sensor_msgs/msg/PointCloud2[gz.msgs.PointCloudPacked',
-            '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
             '/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist',
             '/model/sih_ugv/odometry@nav_msgs/msg/Odometry[gz.msgs.Odometry',
             '/ugv_contacts@ros_gz_interfaces/msg/Contacts[gz.msgs.Contacts',
@@ -400,6 +415,16 @@ def generate_launch_description():
         condition=IfCondition(fusion),
     )
 
+    # RGB-D visual odometry for camera-based localization
+    rgbd_odometry = Node(
+        package='sih26126_localization',
+        executable='rgbd_odometry_baseline',
+        name='rgbd_odometry_baseline',
+        output='screen',
+        parameters=[{'use_sim_time': True}],
+        condition=IfCondition(fusion),
+    )
+
     # -------------------------------------- fusion health monitor
     fusion_health_monitor = Node(
         package='sih26126_localization',
@@ -477,6 +502,8 @@ def generate_launch_description():
             'minimum_explored_area': minimum_explored_area,
             'mission_name': mission_name,
             'mission_timeout_sec': mission_timeout,
+            'pose_startup_grace_sec': 15.0,
+            'mission_type': 'EXPLORATION',
             'use_sim_time': True,
         }],
         condition=IfCondition(is_showcase),
@@ -519,6 +546,60 @@ def generate_launch_description():
         parameters=[{'use_sim_time': True}],
     )
 
+    # ---------------------------------------- terrain memory
+    # Maintains spatial-temporal terrain confidence map with time-decay.
+    # Subscribes: /localization/pose, /map, /terrain/class,
+    #             /terrain/class_confidence
+    # Publishes:  /terrain/memory_map, /terrain/memory_score
+    terrain_memory = Node(
+        package='sih26126_traversability',
+        executable='terrain_memory',
+        name='terrain_memory',
+        output='screen',
+        parameters=[{'use_sim_time': True}],
+    )
+
+    # ---------------------------------------- cost map fusion
+    # Fuses occupancy + terrain + localization confidence into unified cost map.
+    # Subscribes: /map (TRANSIENT_LOCAL), /localization/confidence,
+    #             /terrain/memory_score, /localization/pose
+    # Publishes:  /map/cost_map (TRANSIENT_LOCAL)
+    cost_map_fusion = Node(
+        package='sih26126_planner',
+        executable='cost_map_fusion',
+        name='cost_map_fusion',
+        output='screen',
+        parameters=[{'use_sim_time': True}],
+    )
+
+    # ---------------------------------------- mission profile controller
+    # Executes structured mission profiles (EXPLORATION, WAYPOINT, COVERAGE,
+    # SEARCH, RETURN_HOME) using the existing navigation infrastructure.
+    # Subscribes: /localization/pose, /mission/home_pose, /mission/state
+    # Publishes:  /mission/goal, /mission/profile_state,
+    #             /mission/waypoint_index, /mission/total_waypoints
+    mission_profiles = Node(
+        package='sih26126_autonomy',
+        executable='mission_profiles',
+        name='mission_profile_controller',
+        output='screen',
+        parameters=[{'use_sim_time': True}],
+        condition=IfCondition(is_showcase),
+    )
+
+    # ---------------------------------------- explainability logger
+    # Logs rejected paths and recovery outcomes as MissionEvent messages.
+    # Subscribes: /planner/global_path, /planner/state,
+    #             /recovery/state, /safety/stop_reason
+    # Publishes:  /mission/events, /mission/decision_rationale
+    explainability_logger = Node(
+        package='sih26126_autonomy',
+        executable='explainability_logger',
+        name='explainability_logger',
+        output='screen',
+        parameters=[{'use_sim_time': True}],
+    )
+
     # ---------------------------------------- mission intelligence
     # Turns real runtime state changes into structured MissionEvent messages ->
     # /autonomy/events (MissionEvent) and /autonomy/summary (String)
@@ -540,9 +621,28 @@ def generate_launch_description():
         additional_env={'DRISTHI_DASHBOARD_PORT': dashboard_port},
     )
 
+    # Gazebo GUI streaming: virtual display + x11vnc + websockify + noVNC
+    # Connects gz sim -g to the already-running Gazebo server (headless or GUI).
+    # Does NOT create a second world or robot.  All traffic stays on localhost.
+    gz_gui_stream_node = Node(
+        package='sih26126_dashboard',
+        executable='gz_gui_stream',
+        name='gz_gui_stream',
+        output='screen',
+        parameters=[{
+            'vnc_port': 5900,
+            'websocket_port': 6080,
+            'virtual_display': ':99',
+            'resolution': '1280x800x24',
+            'use_sim_time': True,
+        }],
+        condition=IfCondition(gui_stream),
+    )
+
     return LaunchDescription([
         world_arg, dashboard_port_arg, start_dashboard_arg,
         gui_arg, slam_arg, fusion_arg, scenario_arg,
+        gui_stream_arg,
         exploration_radius_arg, frontier_threshold_arg,
         minimum_completed_frontiers_arg, minimum_explored_area_arg,
         mission_name_arg, mission_timeout_arg, dynamic_obstacle_demo_arg,
@@ -566,6 +666,7 @@ def generate_launch_description():
             lidar_static_tf_publisher,
             imu_static_tf_publisher,  # fusion=true
             ekf_sensor_adapter,       # fusion=true
+            rgbd_odometry,            # fusion=true (visual odometry)
             ekf_node,                 # fusion=true
             planner,
         ]),
@@ -573,6 +674,7 @@ def generate_launch_description():
         # T+7s — sensors, mapping, activators
         TimerAction(period=7.0, actions=[
             dashboard,
+            gz_gui_stream_node,       # gui_stream=true: Gazebo GUI → noVNC → dashboard
             sensor_contract,
             lidar_monitor,
             scan_relay,
@@ -594,12 +696,16 @@ def generate_launch_description():
             safety_supervisor,
             stuck_recovery,
             degraded_autonomy,        # /autonomy/mode
+            terrain_memory,           # /terrain/memory_score (needs pose from T+6s)
+            cost_map_fusion,          # /map/cost_map (needs map + terrain)
         ]),
 
         # T+9s — mission + intelligence
         TimerAction(period=9.0, actions=[
             frontier_explorer,
             mission_manager,
+            mission_profiles,         # mission profile controller
+            explainability_logger,    # /mission/events (rejected paths + recovery)
             mission_intelligence,     # /autonomy/events, /autonomy/summary
         ]),
     ])

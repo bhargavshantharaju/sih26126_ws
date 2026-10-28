@@ -1,0 +1,2 @@
+=== MAP DATA ANALYSIS ===
+No numeric cell data found

@@ -24,9 +24,22 @@ class LidarMonitor(Node):
     def __init__(self):
         super().__init__('lidar_monitor')
 
+        # stale_threshold_sec: 2.0 (aligned with lidar_processor) — the LiDAR
+        # publishes at ~4-5 Hz under WSL2 (RTF < 1.0); a 0.5 s timeout flagged
+        # healthy data as STALE whenever a single bridge delivery lagged > 0.5 s.
+        # 2.0 s tolerates normal simulation jitter while still catching a
+        # genuinely stopped sensor.
         self.declare_parameter('publish_hz', 5.0)
-        self.declare_parameter('stale_threshold_sec', 0.5)
-        self.declare_parameter('min_valid_ratio', 0.60)
+        self.declare_parameter('stale_threshold_sec', 2.0)
+        # min_valid_ratio: 0.05 (aligned with lidar_processor) — valid_ratio is
+        # the fraction of scan bins with an obstacle *return*, which is an
+        # environment-clutter metric, NOT a sensor-health metric.  In open
+        # outdoor terrain most beams reach range_max with no return (inf), so
+        # a perfectly healthy LiDAR routinely reports valid_ratio well below
+        # 0.60.  0.05 means "at least ~5% of beams return *something*", which
+        # confirms the sensor is producing real data without falsely flagging
+        # open terrain as a sensor failure.
+        self.declare_parameter('min_valid_ratio', 0.05)
         self.declare_parameter('expected_min_range', 0.20)
         self.declare_parameter('expected_max_range', 20.0)
 
