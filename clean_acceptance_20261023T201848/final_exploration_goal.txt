@@ -1,0 +1,10 @@
+header:
+  stamp:
+    sec: 76
+    nanosec: 0
+  frame_id: map
+point:
+  x: 4.109167219997873
+  y: -2.4872626796745525
+  z: 0.0
+---

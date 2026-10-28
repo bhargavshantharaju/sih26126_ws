@@ -1,0 +1,48 @@
+[INFO] [1792786751.845197171] [evidence_collector]: Evidence collector started: duration=120s, output=clean_acceptance_20261023T201848
+[INFO] [1792786756.818087551] [evidence_collector]: /cmd_vel publisher count: 1 (['safety_supervisor'])
+[INFO] [1792786761.818180317] [evidence_collector]: /cmd_vel publisher count: 1 (['safety_supervisor'])
+[INFO] [1792786766.818070983] [evidence_collector]: /cmd_vel publisher count: 1 (['safety_supervisor'])
+[INFO] [1792786771.821779182] [evidence_collector]: /cmd_vel publisher count: 1 (['safety_supervisor'])
+[INFO] [1792786776.818085040] [evidence_collector]: /cmd_vel publisher count: 1 (['safety_supervisor'])
+[INFO] [1792786781.820847770] [evidence_collector]: /cmd_vel publisher count: 1 (['safety_supervisor'])
+[INFO] [1792786786.817827824] [evidence_collector]: /cmd_vel publisher count: 1 (['safety_supervisor'])
+[INFO] [1792786791.818145826] [evidence_collector]: /cmd_vel publisher count: 1 (['safety_supervisor'])
+[INFO] [1792786796.819394850] [evidence_collector]: /cmd_vel publisher count: 1 (['safety_supervisor'])
+[INFO] [1792786802.740167504] [evidence_collector]: /cmd_vel publisher count: 1 (['safety_supervisor'])
+[INFO] [1792786806.819311272] [evidence_collector]: /cmd_vel publisher count: 1 (['safety_supervisor'])
+[INFO] [1792786811.818666513] [evidence_collector]: /cmd_vel publisher count: 1 (['safety_supervisor'])
+[INFO] [1792786816.818176642] [evidence_collector]: /cmd_vel publisher count: 1 (['safety_supervisor'])
+[INFO] [1792786821.820683371] [evidence_collector]: /cmd_vel publisher count: 1 (['safety_supervisor'])
+[INFO] [1792786826.818869436] [evidence_collector]: /cmd_vel publisher count: 1 (['safety_supervisor'])
+[INFO] [1792786831.823014827] [evidence_collector]: /cmd_vel publisher count: 1 (['safety_supervisor'])
+[INFO] [1792786836.818021458] [evidence_collector]: /cmd_vel publisher count: 1 (['safety_supervisor'])
+[INFO] [1792786841.818658407] [evidence_collector]: /cmd_vel publisher count: 1 (['safety_supervisor'])
+[INFO] [1792786846.817840865] [evidence_collector]: /cmd_vel publisher count: 1 (['safety_supervisor'])
+[INFO] [1792786851.821801952] [evidence_collector]: /cmd_vel publisher count: 1 (['safety_supervisor'])
+[INFO] [1792786856.819154317] [evidence_collector]: /cmd_vel publisher count: 1 (['safety_supervisor'])
+[INFO] [1792786861.818022713] [evidence_collector]: /cmd_vel publisher count: 1 (['safety_supervisor'])
+[INFO] [1792786866.817977048] [evidence_collector]: /cmd_vel publisher count: 1 (['safety_supervisor'])
+[INFO] [1792786871.819697462] [evidence_collector]: /cmd_vel publisher count: 1 (['safety_supervisor'])
+
+=== Evidence Collection Summary ===
+{
+  "wall_duration_s": 120.07,
+  "sim_duration_s": 57.41,
+  "sim_start_s": 10.191,
+  "sim_end_s": 67.6,
+  "clock_non_monotonic_count": 0,
+  "clock_sample_count": 51827,
+  "mission_state_count": 114,
+  "safety_sample_count": 694,
+  "fusion_sample_count": 282,
+  "gz_path_length_m": 1.8245,
+  "gz_net_displacement_m": 0.9968,
+  "ekf_path_length_m": 2.6403,
+  "ekf_net_displacement_m": 0.1879,
+  "lidar_points_rate_hz": 4.4,
+  "lidar_scan_2d_rate_hz": 4.3,
+  "cmd_vel_msg_count": 575,
+  "metrics_msg_count": 114,
+  "tf_map_odom_ok": "60/60",
+  "tf_odom_base_ok": "60/60"
+}

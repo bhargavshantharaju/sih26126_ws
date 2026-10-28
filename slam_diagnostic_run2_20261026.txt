@@ -1,0 +1,59 @@
+=== SLAM Diagnostic Test ===
+Workspace: /home/venom/sih26126_ws
+Test directory: /home/venom/sih26126_ws/slam_diagnostic_20261026T150153
+Start time: Mon Oct 26 15:01:53 UTC 2026
+
+Launching DRISTHI stack (slam=true, fusion=true, gui=false)...
+Launch PID: 20479
+Waiting 25s for system startup...
+
+=== Collecting Diagnostics (T+25s to T+60s) ===
+Sampling /clock...
+Sampling /lidar/scan_2d...
+Measuring scan rate...
+Sampling /map...
+Checking TF tree...
+Checking /cmd_vel publisher...
+Extracting SLAM events from launch log...
+Counting MessageFilter drops...
+Sampling safety state...
+
+Waiting additional 10s for map updates...
+
+Shutting down...
+
+=== Test Complete ===
+End time: Mon Oct 26 15:02:58 UTC 2026
+
+=== Summary ===
+
+1. Clock:
+TIMEOUT
+
+2. Scan sample:
+TIMEOUT
+
+3. Scan rate:
+TIMEOUT or no scans
+
+4. MessageFilter drops:
+0
+
+5. SLAM events:
+[slam_activator-22] [INFO] [1793026923.944802346] [slam_activator]: slam_toolbox is ACTIVE — SLAM is running and processing scans
+
+6. Map availability (first check):
+TIMEOUT or no map
+
+7. Map availability (final check):
+TIMEOUT
+
+8. TF map->odom:
+TIMEOUT or unavailable
+
+9. Safety state:
+data: STOPPED
+---
+
+Full diagnostic data saved in: /home/venom/sih26126_ws/slam_diagnostic_20261026T150153/
+

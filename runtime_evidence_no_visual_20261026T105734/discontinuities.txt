@@ -1,0 +1,1 @@
+[mission_manager-33] [WARN] [1793012348.575300317] [mission_manager]: Pose discontinuity 1 (consecutive=1/3): IMPLAUSIBLE_POSE_DELTA delta=0.349 m in 0.0250 s frame='map'; raw pose retained, metric sample rejected

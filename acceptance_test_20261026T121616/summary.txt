@@ -1,0 +1,7 @@
+Test Timestamp: 20261026T121616
+Duration: 90 seconds
+Queue drops: 10
+Pose discontinuities: 0
+SAFE_COMMAND count: 0
+STOPPED count: 10
+Cleanup status: 0 remaining processes

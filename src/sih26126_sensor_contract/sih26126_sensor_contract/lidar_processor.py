@@ -19,6 +19,8 @@ by projecting the horizontal plane slice.
 Also publishes LiDAR health on /sensor_health/lidar.
 """
 
+from __future__ import annotations  # Enable list[type] syntax for Python 3.9+
+
 import math
 import struct
 import time
@@ -29,6 +31,7 @@ from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan, PointCloud2
 from sih26126_msgs.msg import SensorHealth
+import tf2_ros
 
 
 def pointcloud2_to_xyz(msg: PointCloud2):
@@ -105,7 +108,12 @@ class LidarProcessor(Node):
         self.declare_parameter('range_min', 0.2)
         self.declare_parameter('range_max', 20.0)
         self.declare_parameter('vertical_tolerance_deg', 5.0)
-        self.declare_parameter('stale_timeout_sec', 1.0)
+        # Stale detection: report LiDAR as stale if no PointCloud2 received
+        # within this wall-clock interval.  Default 2.0s accommodates WSL2
+        # simulation where Gazebo may run at RTF < 1.0 and the ROS bridge
+        # delivery can lag.  A 1.0s timeout produced frequent false DEGRADED_SENSOR
+        # transitions even while the system was actively navigating.
+        self.declare_parameter('stale_timeout_sec', 2.0)
         self.declare_parameter('min_valid_ratio', 0.05)
 
         self._lidar_frame = str(self.get_parameter('lidar_frame').value)
@@ -122,6 +130,15 @@ class LidarProcessor(Node):
         self._last_cloud_time: float | None = None
         self._sample_count: int = 0
         self._last_valid_ratio: float = 0.0
+
+        # TF buffer for checking odom->base_link availability at scan timestamps.
+        # SLAM's MessageFilter requires odom->base_link TF at the scan's exact
+        # sim-timestamp.  We check this transform at each cloud's original
+        # timestamp before publishing the scan.  Clouds captured before the EKF
+        # starts publishing odom->base_link are dropped — they are genuinely
+        # stale and restamping them would break temporal consistency.
+        self._tf_buffer = tf2_ros.Buffer()
+        self._tf_listener = tf2_ros.TransformListener(self._tf_buffer, self)
 
         # Subscribers
         self._cloud_sub = self.create_subscription(
@@ -144,10 +161,63 @@ class LidarProcessor(Node):
         )
 
     def _cloud_callback(self, msg: PointCloud2) -> None:
-        """Process incoming 3D point cloud and publish 2D scan."""
+        """Process incoming 3D point cloud and publish 2D scan.
+
+        SLAM's MessageFilter requires odom->base_link TF at the scan's exact
+        sim-timestamp.  We check this transform at the cloud's original
+        timestamp before publishing.  Clouds captured before the EKF starts
+        are dropped — they are genuinely stale.  The original cloud timestamp
+        is always preserved on the published scan to maintain temporal
+        consistency between scan data and robot pose.
+        """
         self._last_cloud_time = time.monotonic()
         self._sample_count += 1
 
+        # Check if odom->base_link TF exists at this cloud's timestamp.
+        # This is the same transform SLAM's MessageFilter will look up.
+        # Using the cloud's original timestamp ensures we only publish
+        # scans whose TF is available, preventing queue-full drops in SLAM.
+        cloud_time = rclpy.time.Time(
+            seconds=msg.header.stamp.sec,
+            nanoseconds=msg.header.stamp.nanosec,
+        )
+        try:
+            self._tf_buffer.lookup_transform(
+                'odom', 'base_link',
+                cloud_time,
+                timeout=rclpy.duration.Duration(seconds=0.0),
+            )
+        except tf2_ros.ExtrapolationException:
+            # TF not available at this timestamp yet (EKF hasn't caught up
+            # or cloud predates EKF startup).  Drop the cloud — restamping
+            # would break temporal consistency.
+            self.get_logger().debug(
+                f'Dropping cloud at t={msg.header.stamp.sec}.'
+                f'{msg.header.stamp.nanosec:09d}s: '
+                f'odom->base_link TF not available at this timestamp',
+                throttle_duration_sec=5.0,
+            )
+            return
+        except tf2_ros.LookupException:
+            # TF chain does not exist at all — EKF not started yet.
+            self.get_logger().debug(
+                'Dropping cloud: odom->base_link TF chain not available',
+                throttle_duration_sec=5.0,
+            )
+            return
+        except tf2_ros.ConnectivityException:
+            # TF chain is broken (missing intermediate frame).
+            self.get_logger().debug(
+                'Dropping cloud: odom->base_link TF chain broken',
+                throttle_duration_sec=5.0,
+            )
+            return
+
+        # TF is available at the cloud's timestamp — process and publish.
+        self._process_cloud(msg)
+
+    def _process_cloud(self, msg: PointCloud2) -> None:
+        """Process a point cloud and publish the corresponding scan."""
         try:
             pts = self._fast_extract_xyz(msg)
         except Exception as exc:
@@ -170,6 +240,11 @@ class LidarProcessor(Node):
         self._last_valid_ratio = float(np.sum(valid)) / max(1, self._scan_bins)
 
         scan = LaserScan()
+        # Preserve the original cloud timestamp (actual measurement time).
+        # We only publish scans whose odom->base_link TF is available at this
+        # timestamp, so SLAM's MessageFilter will succeed when it looks up the
+        # transform.  This maintains temporal consistency: the scan data and
+        # robot pose correspond to the same instant in simulation time.
         scan.header.stamp = msg.header.stamp
         scan.header.frame_id = self._lidar_frame
         scan.angle_min = self._angle_min

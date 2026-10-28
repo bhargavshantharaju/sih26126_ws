@@ -1,0 +1,7 @@
+=== Safety State ===
+WARNING: topic [/safety/state] does not appear to be published yet
+Could not determine the type for the passed topic
+No safety state
+WARNING: topic [/safety/reason] does not appear to be published yet
+Could not determine the type for the passed topic
+No safety reason

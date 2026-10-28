@@ -1,0 +1,1 @@
+Launch command: ros2 launch sih26126_bringup autonomous_mission.launch.py gui:=false start_dashboard:=false 

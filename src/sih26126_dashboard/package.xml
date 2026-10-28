@@ -18,6 +18,9 @@
   <exec_depend>sih26126_msgs</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-opencv</exec_depend>
+  <!-- Gazebo GUI streaming optional deps (only needed when gui_stream:=true) -->
+  <!-- apt: xvfb x11vnc websockify novnc -->
+  <!-- pip fallback for websockify: pip3 install websockify with break-system-packages flag -->
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_pep257</test_depend>

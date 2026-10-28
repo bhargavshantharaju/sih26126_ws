@@ -13,7 +13,7 @@ from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from sensor_msgs.msg import CameraInfo, Image, PointCloud2
 from sensor_msgs.msg import LaserScan
-from sih26126_msgs.msg import AutonomyMode, PlannerRisk
+from sih26126_msgs.msg import AutonomyMode, PlannerRisk, TrackedObstacleArray
 from std_msgs.msg import Float32, String
 
 
@@ -315,9 +315,20 @@ def obstacle_clearance_score(
 
 def scan_corridor_clearance(scan: Optional[LaserScan], candidate_angle: float,
                             half_width: float = 0.42,
-                            x_min: float = 0.20,
+                            x_min: float = 0.45,
                             x_max: float = 3.0) -> float:
-    """Return nearest live LiDAR return in a forward candidate corridor."""
+    """
+    Return nearest live LiDAR return in a forward candidate corridor.
+
+    *x_min* is intentionally 0.45 m rather than the scan's own range_min
+    (0.20 m).  The 3D LiDAR is projected to a 2D horizontal slice with a
+    ±5° vertical tolerance.  At very short ranges (<0.45 m) the scan
+    frequently hits the robot's own chassis or the ground plane directly
+    beneath the sensor, producing spurious near-zero clearance readings that
+    trigger false OBSTACLE_STOP states.  The depth-camera obstacle filter
+    already excludes these low-height returns via ``min_obstacle_height``
+    (0.18 m); the same exclusion zone is applied here in range space.
+    """
     if scan is None or not scan.ranges or scan.angle_increment == 0.0:
         return float('inf')
     distances = []
@@ -429,6 +440,99 @@ def score_candidate(
     return base_score * obstacle_score * obstacle_score
 
 
+def predict_trajectory_collision_risk(
+    robot_x: float,
+    robot_y: float,
+    robot_yaw: float,
+    candidate_angle: float,
+    speed: float,
+    tracked_obstacles: Optional[TrackedObstacleArray],
+    horizon_sec: float = 2.0,
+    time_steps: int = 8,
+    safe_distance: float = 1.2,
+    critical_distance: float = 0.6,
+) -> float:
+    """
+    Predict collision risk for a candidate trajectory over time.
+
+    Returns a risk score in [0, 1] where:
+    - 0.0 = no collision risk (all obstacles stay far away)
+    - 1.0 = imminent collision (obstacle closer than critical distance)
+
+    The robot trajectory is modeled as constant-velocity motion along
+    the candidate steering angle. Each obstacle moves according to its
+    estimated velocity vector.
+
+    NOTE: Assumes obstacles are in base_link frame (relative to robot),
+    which is the typical output from LiDAR/depth camera obstacle extraction.
+    """
+    if tracked_obstacles is None or not tracked_obstacles.obstacles:
+        return 0.0
+
+    # Filter to dynamic obstacles only - static ones are already handled
+    # by the depth-camera obstacle clearance
+    dynamic_obstacles = [
+        obs for obs in tracked_obstacles.obstacles
+        if obs.is_dynamic and obs.confidence > 0.3
+    ]
+
+    if not dynamic_obstacles:
+        return 0.0
+
+    dt = horizon_sec / max(1, time_steps)
+    max_risk = 0.0
+
+    for step in range(time_steps + 1):
+        t = step * dt
+
+        # Predicted robot position along candidate trajectory (in base_link frame at t=0)
+        # Robot moves along the candidate angle
+        robot_pred_x = speed * t * math.cos(candidate_angle)
+        robot_pred_y = speed * t * math.sin(candidate_angle)
+
+        # Check distance to each dynamic obstacle at this time
+        for obs in dynamic_obstacles:
+            # Validate obstacle data - treat non-finite as maximum risk
+            # (conservative: we cannot prove safety)
+            if not (math.isfinite(obs.position.x) and
+                    math.isfinite(obs.position.y) and
+                    math.isfinite(obs.velocity.x) and
+                    math.isfinite(obs.velocity.y)):
+                # Non-finite obstacle data: assume maximum risk
+                max_risk = 1.0
+                break
+
+            # Obstacle position is in base_link frame at t=0
+            # At time t, obstacle has moved by its velocity * t
+            obs_pred_x = obs.position.x + obs.velocity.x * t
+            obs_pred_y = obs.position.y + obs.velocity.y * t
+
+            # Distance between predicted positions
+            distance = math.hypot(
+                robot_pred_x - obs_pred_x,
+                robot_pred_y - obs_pred_y
+            )
+
+            # Validate distance result
+            if not math.isfinite(distance):
+                # Non-finite distance: assume maximum risk
+                max_risk = 1.0
+                break
+
+            # Convert distance to risk score
+            if distance <= critical_distance:
+                max_risk = 1.0
+                break  # Imminent collision, no need to check further
+            elif distance < safe_distance:
+                risk = 1.0 - (distance - critical_distance) / (safe_distance - critical_distance)
+                max_risk = max(max_risk, risk)
+
+        if max_risk >= 1.0:
+            break  # Already at maximum risk
+
+    return max_risk
+
+
 def select_best_candidate(
     image: np.ndarray,
     candidate_angles: Sequence[float],
@@ -438,6 +542,11 @@ def select_best_candidate(
     previous_angle: float,
     points: Optional[np.ndarray] = None,
     switch_margin: float = 0.04,
+    robot_x: float = 0.0,
+    robot_y: float = 0.0,
+    robot_yaw: float = 0.0,
+    robot_speed: float = 0.2,
+    tracked_obstacles: Optional[TrackedObstacleArray] = None,
 ) -> Tuple[float, float, float]:
     """Select the candidate with highest terrain/obstacle score."""
     best_angle = candidate_angles[0]
@@ -471,6 +580,16 @@ def select_best_candidate(
             clearance = obstacle_clearance(points, angle)
             obstacle_score = obstacle_clearance_score(clearance)
 
+        # Apply predictive collision risk for dynamic obstacles
+        if tracked_obstacles is not None:
+            collision_risk = predict_trajectory_collision_risk(
+                robot_x, robot_y, robot_yaw, angle, robot_speed,
+                tracked_obstacles, horizon_sec=2.0, time_steps=8
+            )
+            # Reduce obstacle score based on predicted collision risk
+            # High collision risk (approaching 1.0) significantly reduces the score
+            obstacle_score = obstacle_score * (1.0 - collision_risk)
+
         combined = score_candidate(
             terrain,
             validity,
@@ -501,10 +620,19 @@ def build_local_path(
     steering_angle: float,
     lookahead: float = 3.0,
     samples: int = 12,
+    frame_id: str = 'odom',
 ) -> Path:
-    """Build a straight advisory local path for one selected direction."""
+    """
+    Build a straight advisory local path for one selected direction.
+
+    The *frame_id* must match the coordinate frame in which *pose_x/pose_y*
+    and *yaw* are expressed.  When SLAM is active and the robot's position
+    comes from the map-frame localization pose, pass ``frame_id='map'`` so
+    that downstream consumers (dashboard, mission manager) see coordinates
+    that are consistent with the global path.
+    """
     path = Path()
-    path.header.frame_id = 'odom'
+    path.header.frame_id = frame_id
 
     count = max(2, samples)
 
@@ -526,7 +654,7 @@ def build_local_path(
         )
 
         pose = PoseStamped()
-        pose.header.frame_id = 'odom'
+        pose.header.frame_id = frame_id
         pose.pose.position.x = world_x
         pose.pose.position.y = world_y
         pose.pose.position.z = 0.0
@@ -561,9 +689,18 @@ class LocalPathSelector(Node):
         # Dynamic risk and autonomy mode integration
         self.dynamic_risk: float = 0.0
         self.dynamic_risk_received_at: Optional[float] = None
+        self.tracked_obstacles: Optional[TrackedObstacleArray] = None
+        self.tracked_obstacles_received_at: Optional[float] = None
         self.autonomy_mode: str = 'FULL_AUTONOMY'
         self.autonomy_mode_received_at: Optional[float] = None
         self.localization_confidence: float = 1.0
+
+        # Localization pose for map-frame path following (when SLAM is active,
+        # the global path is in 'map' frame; using the localization pose here
+        # ensures pose and path are in the same reference frame).
+        self.localization_pose: Optional[object] = None
+        self.localization_pose_received_at: Optional[float] = None
+        self.localization_frame: str = 'odom'
 
         # Keep edge candidates inside the depth camera's ~±30° horizontal
         # field of view so the rover can steer around obstacles that fill the
@@ -575,7 +712,7 @@ class LocalPathSelector(Node):
         self.declare_parameter('lookahead_m', 3.0)
         self.declare_parameter('publish_hz', 5.0)
         self.declare_parameter('max_angular_speed', 0.6)
-        self.declare_parameter('max_sensor_age_s', 0.75)
+        self.declare_parameter('max_sensor_age_s', 2.0)
         self.declare_parameter('pointcloud_stride', 4)
 
         self.map_sub = self.create_subscription(
@@ -591,7 +728,7 @@ class LocalPathSelector(Node):
             10,
         )
         self.scan_sub = self.create_subscription(
-            LaserScan, '/scan', self.scan_callback, 10)
+            LaserScan, '/lidar/scan_2d', self.scan_callback, 10)
         self.info_sub = self.create_subscription(
             CameraInfo,
             '/camera_info',
@@ -633,6 +770,12 @@ class LocalPathSelector(Node):
             self.dynamic_risk_callback,
             10,
         )
+        self.tracked_obstacles_sub = self.create_subscription(
+            TrackedObstacleArray,
+            '/obstacles/tracked',
+            self.tracked_obstacles_callback,
+            10,
+        )
         self.autonomy_mode_sub = self.create_subscription(
             AutonomyMode,
             '/autonomy/mode',
@@ -643,6 +786,12 @@ class LocalPathSelector(Node):
             Float32,
             '/localization/confidence',
             self.localization_confidence_callback,
+            10,
+        )
+        self.localization_pose_sub = self.create_subscription(
+            PoseStamped,
+            '/localization/pose',
+            self.localization_pose_callback,
             10,
         )
 
@@ -742,6 +891,11 @@ class LocalPathSelector(Node):
         self.dynamic_risk = max(0.0, min(1.0, float(msg.data)))
         self.dynamic_risk_received_at = time.monotonic()
 
+    def tracked_obstacles_callback(self, msg: TrackedObstacleArray) -> None:
+        """Store the latest tracked obstacles with velocity and predictions."""
+        self.tracked_obstacles = msg
+        self.tracked_obstacles_received_at = time.monotonic()
+
     def autonomy_mode_callback(self, msg: AutonomyMode) -> None:
         """Store the current autonomy mode."""
         self.autonomy_mode = msg.mode
@@ -750,6 +904,18 @@ class LocalPathSelector(Node):
     def localization_confidence_callback(self, msg: Float32) -> None:
         """Store localization confidence for risk assessment."""
         self.localization_confidence = max(0.0, min(1.0, float(msg.data)))
+
+    def localization_pose_callback(self, msg: PoseStamped) -> None:
+        """Store the map-frame pose for path following when SLAM is active."""
+        pos = msg.pose.position
+        ori = msg.pose.orientation
+        if not all(math.isfinite(float(v)) for v in (
+                pos.x, pos.y, ori.x, ori.y, ori.z, ori.w)):
+            return
+        self.localization_pose = msg.pose
+        self.localization_pose_received_at = time.monotonic()
+        if msg.header.frame_id:
+            self.localization_frame = msg.header.frame_id
 
     def publish_stop(self, state: str) -> None:
         """Publish zero advisory motion."""
@@ -875,8 +1041,43 @@ class LocalPathSelector(Node):
 
         path_frame = self.global_path.header.frame_id
         pose_frame = self.odom.header.frame_id
-        if path_frame and pose_frame and path_frame != pose_frame:
-            self.publish_stop('PATH_POSE_FRAME_MISMATCH')
+
+        # When SLAM is active, the global path arrives in 'map' frame but
+        # odometry is in 'odom' frame.  Select the localization pose (map
+        # frame) when the path frame matches it so goal angles are computed
+        # in a consistent reference frame.
+        max_sensor_age = float(
+            self.get_parameter('max_sensor_age_s').value
+        )
+        now = time.monotonic()
+
+        use_localization_pose = (
+            path_frame
+            and self.localization_frame == path_frame
+            and self.localization_pose is not None
+            and input_is_fresh(self.localization_pose_received_at, max_sensor_age, now)
+        )
+
+        if use_localization_pose:
+            effective_pose = self.localization_pose
+            effective_frame = self.localization_frame
+        else:
+            effective_pose = self.odom.pose.pose
+            effective_frame = pose_frame
+
+        if path_frame and effective_frame and path_frame != effective_frame:
+            # Startup race: SLAM path arrives in 'map' before /localization/pose
+            # has been received for the first time.  Rather than permanently
+            # blocking with PATH_POSE_FRAME_MISMATCH, report a transient waiting
+            # state so upstream components know we are initialising, not broken.
+            # Once the slam_pose_adapter has published at least one map-frame
+            # pose (typically within 100 ms), use_localization_pose becomes
+            # True and this branch is never taken again.
+            if (path_frame == 'map'
+                    and self.localization_pose is None):
+                self.publish_stop('WAITING_FOR_LOCALIZATION_POSE')
+            else:
+                self.publish_stop('PATH_POSE_FRAME_MISMATCH')
             return
 
         if self.pointcloud is None:
@@ -886,10 +1087,6 @@ class LocalPathSelector(Node):
             self.publish_stop('WAITING_FOR_LIDAR')
             return
 
-        max_sensor_age = float(
-            self.get_parameter('max_sensor_age_s').value
-        )
-        now = time.monotonic()
         for received_at, state in (
             (self.pointcloud_received_at, 'STALE_DEPTH'),
             (self.scan_received_at, 'STALE_LIDAR'),
@@ -905,18 +1102,28 @@ class LocalPathSelector(Node):
             self.publish_stop('INVALID_SCORE_MAP')
             return
 
-        pose = self.odom.pose.pose.position
-        yaw = quaternion_to_yaw(
-            self.odom.pose.pose.orientation
-        )
+        pose = effective_pose.position
+        yaw = quaternion_to_yaw(effective_pose.orientation)
 
         goal = self.global_path.poses[-1].pose.position
+
+        # Detailed logging for goal angle diagnosis
+        world_angle_to_goal = math.atan2(goal.y - pose.y, goal.x - pose.x)
         goal_angle = goal_angle_from_pose(
             pose.x,
             pose.y,
             yaw,
             goal.x,
             goal.y,
+        )
+
+        self.get_logger().info(
+            f'Goal angle calc: pose=({pose.x:.3f},{pose.y:.3f}) '
+            f'yaw={math.degrees(yaw):.1f}° goal=({goal.x:.3f},{goal.y:.3f}) '
+            f'world_bearing={math.degrees(world_angle_to_goal):.1f}° '
+            f'body_angle={math.degrees(goal_angle):.1f}° '
+            f'frame={effective_frame}',
+            throttle_duration_sec=5.0,
         )
 
         max_angle = math.radians(
@@ -956,6 +1163,11 @@ class LocalPathSelector(Node):
                 self.previous_angle,
                 points,
                 float(self.get_parameter('steering_switch_margin').value),
+                robot_x=pose.x,
+                robot_y=pose.y,
+                robot_yaw=yaw,
+                robot_speed=self.global_speed if self.global_speed > 0 else 0.2,
+                tracked_obstacles=self.tracked_obstacles,
             )
         )
 
@@ -1006,6 +1218,7 @@ class LocalPathSelector(Node):
             selected_angle,
             float(self.get_parameter('lookahead_m').value),
             12,
+            frame_id=effective_frame,
         )
 
         path_score = Float32()

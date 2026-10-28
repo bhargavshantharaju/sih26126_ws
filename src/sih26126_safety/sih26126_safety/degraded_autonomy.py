@@ -82,6 +82,12 @@ class DegradedAutonomyManager(Node):
         self._recovery_hyst = float(
             self.get_parameter('recovery_hysteresis_sec').value)
 
+        # Startup grace period: don't enter DEGRADED_SENSOR for missing LiDAR
+        # health until this many seconds have elapsed. This prevents false
+        # degradation while the LiDAR health monitor is still starting up.
+        self._startup_time = time.monotonic()
+        self._startup_grace_sec = 15.0
+
         # --- State ---
         self._current_mode = 'FULL_AUTONOMY'
         self._mode_entered_at = time.monotonic()
@@ -172,10 +178,13 @@ class DegradedAutonomyManager(Node):
             elif self._lidar_healthy is False:
                 degradations.append('lidar_unhealthy')
                 target_mode = _higher_priority(target_mode, 'DEGRADED_SENSOR')
-        elif self._lidar_health_time is None:
-            # Never received — assume sensor absent
-            degradations.append('lidar_no_data')
-            target_mode = _higher_priority(target_mode, 'DEGRADED_SENSOR')
+        else:
+            # Never received lidar health. Only degrade after the startup grace
+            # period has elapsed — the health monitor may still be starting up.
+            uptime = now - self._startup_time
+            if uptime >= self._startup_grace_sec:
+                degradations.append('lidar_no_data')
+                target_mode = _higher_priority(target_mode, 'DEGRADED_SENSOR')
 
         # --- Check: localization confidence ---
         if self._loc_confidence is not None:

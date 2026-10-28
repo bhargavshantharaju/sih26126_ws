@@ -21,10 +21,18 @@ class LidarStaticTFPublisher(Node):
         self.get_logger().info('LiDAR static TF publisher initialized (lidar_3d)')
 
     def publish_static_tf(self):
-        """Publish static transform from base_link to lidar_3d frame."""
+        """
+        Publish static transform from base_link to lidar_3d frame.
+
+        Timestamp is set to zero (sec=0, nanosec=0) intentionally.
+        Using get_clock().now() at startup with use_sim_time=True may return
+        sim-time=0 before /clock flows, causing TF2 to discard the transform.
+        A zero-stamped static TF is treated by TF2 as valid at all times.
+        """
         t = TransformStamped()
 
-        t.header.stamp = self.get_clock().now().to_msg()
+        t.header.stamp.sec = 0
+        t.header.stamp.nanosec = 0
         t.header.frame_id = 'base_link'
         t.child_frame_id = 'sih_ugv/base_link/lidar_3d'
 

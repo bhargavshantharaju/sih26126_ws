@@ -25,6 +25,7 @@ setup(
     entry_points={
         "console_scripts": [
             "dashboard = sih26126_dashboard.dashboard_node:main",
+            "gz_gui_stream = sih26126_dashboard.gui_stream_node:main",
         ],
     },
 )

@@ -1,0 +1,5 @@
+=== SLAM Diagnostic Test ===
+Workspace: /home/venom/sih26126_ws
+Test directory: /home/venom/sih26126_ws/slam_diagnostic_20261026T123203
+Start time: Mon Oct 26 12:32:03 UTC 2026
+

@@ -84,6 +84,8 @@ def _make_supervisor() -> SafetySupervisor:
         sup.recovery_state = None
         sup.recovery_suggestion_time = None
         sup.recovery_state_time = None
+        # Added with confidence grace period fix
+        sup._confidence_grace_start = 0.0  # Start at 0: grace already expired
 
         sup.cmd_pub = MagicMock()
         sup.state_pub = MagicMock()
@@ -96,6 +98,7 @@ def _make_supervisor() -> SafetySupervisor:
             'max_angular_speed': 0.60,
             'publish_hz': 10.0,
             'localization_confidence_threshold': 0.2,
+            'confidence_grace_sec': 30.0,  # Required by the grace period fix
         }
 
         def _get_parameter(name):

@@ -1,0 +1,6 @@
+[mission_intelligence-36] [INFO] [1793012279.237217584] [mission_intelligence]: [MISSION] MISSION: Mission state: SAFE_STOP
+[mission_intelligence-36] [INFO] [1793012286.309086570] [mission_intelligence]: [MISSION] MISSION: Mission state: SAFE_STOP
+[mission_intelligence-36] [INFO] [1793012304.907783174] [mission_intelligence]: [MISSION] MISSION: Mission state: SAFE_STOP
+[safety_supervisor-27] [INFO] [1793012306.419732830] [safety_supervisor]: safety=SAFE reason=SAFE_COMMAND linear=0.067 angular=0.000 dyn_risk=0.00
+[safety_supervisor-27] [INFO] [1793012326.727274627] [safety_supervisor]: safety=SAFE reason=SAFE_COMMAND linear=0.074 angular=0.000 dyn_risk=0.00
+[mission_intelligence-36] [INFO] [1793012356.902249675] [mission_intelligence]: [MISSION] MISSION: Mission state: SAFE_STOP
